@@ -14,8 +14,6 @@ from monai.transforms import (
     Spacingd,
     ToTensord,
 )
-from monai.networks.nets import UNet
-from monai.networks.layers import Norm
 from monai.metrics import compute_meandice
 from monai.losses import DiceLoss
 from monai.inferers import sliding_window_inference
@@ -25,9 +23,6 @@ from monai.apps import download_and_extract
 import torch
 import matplotlib.pyplot as plt
 import tempfile
-import shutil
-import os
-import glob
 
 import torch
 import torchvision
@@ -35,54 +30,16 @@ import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 
 import numpy as np
-from configparser import ConfigParser
+
+from common import *
 
 # Tensorboard
 writer = SummaryWriter('runs/segmentation_experiment_1')
 
-
-### Following parameters will be used for both training and testing ###
-config = ConfigParser()
-config.read('config.ini')
-
-val_ratio = config.getfloat('main', 'val_ratio')
-data_dir = config.get('main', 'data_dir')
-root_dir = config.get('main', 'root_dir')
-pixel_dim = config.get('main', 'pixel_dim')
-if pixel_dim:
-    pixel_dim = pixel_dim.split(',')
-    pixel_dim = [float(s) for s in pixel_dim]
-    pixel_dim = tuple(pixel_dim)
-else:
-    pixel_dim = (1.0,1.0,1.0)
-pixel_intensity_min = config.getfloat('main', 'pixel_intensity_min')
-pixel_intensity_max = config.getfloat('main', 'pixel_intensity_max')
-
-#######################################################################
-
 torch.multiprocessing.set_sharing_strategy('file_system')
 print_config()
 
-print('Reading data from: ' + data_dir)
-
-train_images = sorted(glob.glob(os.path.join(data_dir, "images", "*.nii.gz")))
-train_labels = sorted(glob.glob(os.path.join(data_dir, "labels", "*.nii.gz")))
-data_dicts = [
-    {"image": image_name, "label": label_name}
-    for image_name, label_name in zip(train_images, train_labels)
-]
-
-n_total = len(data_dicts)
-n_val = round(n_total * val_ratio)
-
-print('Total data size:      ' + str(n_total))
-print('Validation data size: ' + str(n_val))
-
-train_files, val_files = data_dicts[:-n_val], data_dicts[-n_val:]
-
 set_determinism(seed=0)
-
-
 
 train_transforms = Compose(
     [
@@ -120,21 +77,6 @@ train_transforms = Compose(
     ]
 )
 
-val_transforms = Compose(
-    [
-        LoadImaged(keys=["image", "label"]),
-        AddChanneld(keys=["image", "label"]),
-        Spacingd(keys=["image", "label"], pixdim=pixel_dim, mode=("bilinear", "nearest")),
-        Orientationd(keys=["image", "label"], axcodes="LPS"),
-        ScaleIntensityRanged(
-            keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
-            b_min=0.0, b_max=1.0, clip=True,
-        ),
-        CropForegroundd(keys=["image", "label"], source_key="image"),
-        ToTensord(keys=["image", "label"]),
-    ]
-)
-
 check_ds = Dataset(data=val_files, transform=val_transforms)
 check_loader = DataLoader(check_ds, batch_size=1)
 print(check_loader)
@@ -152,14 +94,6 @@ sl = 8
 # plt.imshow(label[:, :, sl])
 # plt.show()
 
-# Check data sizes
-#check_ds = Dataset(data=train_files, transform=train_transforms)
-#check_loader = DataLoader(check_ds, batch_size=1)
-#for check_data in check_loader:
-#    image, label = (check_data["image"][0][0], check_data["label"][0][0])
-#    print(f"image shape: {image.shape}, label shape: {label.shape}")
-#
-
 train_ds = CacheDataset(
     data=train_files, transform=train_transforms,
     cache_rate=1.0, num_workers=4)
@@ -169,25 +103,11 @@ train_ds = CacheDataset(
 # to generate 2 x 4 images for network training
 train_loader = DataLoader(train_ds, batch_size=2, shuffle=True, num_workers=4)
 
-val_ds = CacheDataset(
-    data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=4)
-# val_ds = Dataset(data=val_files, transform=val_transforms)
-val_loader = DataLoader(val_ds, batch_size=1, num_workers=4)
-
-
-
 # standard PyTorch program style: create UNet, DiceLoss and Adam optimizer
 device = torch.device("cuda:0")
 #device = torch.device("cpu")
-model = UNet(
-    dimensions=3,
-    in_channels=1,
-    out_channels=2,
-    channels=(16, 32, 64, 128, 256),
-    strides=(2, 2, 2, 2),
-    num_res_units=2,
-    norm=Norm.BATCH,
-).to(device)
+model = model_unet.to(device)
+
 loss_function = DiceLoss(to_onehot_y=True, softmax=True)
 optimizer = torch.optim.Adam(model.parameters(), 1e-4)
 
