@@ -35,24 +35,17 @@ import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 
 import numpy as np
-
+from configparser import ConfigParser
 
 # Tensorboard
 writer = SummaryWriter('runs/segmentation_experiment_1')
 
 
 ### Following parameters will be used for both training and testing ###
+config = ConfigParser()
+config.read('config.ini')
 
-# data_dir = './sorted_nii'
-# root_dir = '.'
-# val_ratio = 0.1
-# 
-# pd = (0.9375*2, 0.9375*2, 3.6)
-# #pd = (0.9375, 0.9375, 1.8)
-# 
-# intensity_max=250
-
-val_ratio = config.getfloat('main', 'val_ratio'))
+val_ratio = config.getfloat('main', 'val_ratio')
 data_dir = config.get('main', 'data_dir')
 root_dir = config.get('main', 'root_dir')
 pixel_dim = config.get('main', 'pixel_dim')
@@ -64,7 +57,6 @@ else:
     pixel_dim = (1.0,1.0,1.0)
 pixel_intensity_min = config.getfloat('main', 'pixel_intensity_min')
 pixel_intensity_max = config.getfloat('main', 'pixel_intensity_max')
-
 
 #######################################################################
 
@@ -99,7 +91,7 @@ train_transforms = Compose(
         Spacingd(keys=["image", "label"], pixdim=pixel_dim, mode=("bilinear", "nearest")),
         Orientationd(keys=["image", "label"], axcodes="LPS"),
         ScaleIntensityRanged(
-            keys=["image"], a_min=pixel_intensity_min, a_max=pizel_intensity_max,
+            keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
             b_min=0.0, b_max=1.0, clip=True,
         ),
         CropForegroundd(keys=["image", "label"], source_key="image"),
@@ -132,10 +124,10 @@ val_transforms = Compose(
     [
         LoadImaged(keys=["image", "label"]),
         AddChanneld(keys=["image", "label"]),
-        Spacingd(keys=["image", "label"], pixdim=pd, mode=("bilinear", "nearest")),
+        Spacingd(keys=["image", "label"], pixdim=pixel_dim, mode=("bilinear", "nearest")),
         Orientationd(keys=["image", "label"], axcodes="LPS"),
         ScaleIntensityRanged(
-            keys=["image"], a_min=0, a_max=intensity_max,
+            keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
             b_min=0.0, b_max=1.0, clip=True,
         ),
         CropForegroundd(keys=["image", "label"], source_key="image"),

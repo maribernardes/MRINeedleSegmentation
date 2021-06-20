@@ -29,27 +29,17 @@ import tempfile
 import shutil
 import os
 import glob
+from configparser import ConfigParser
+
 
 device = torch.device("cuda:0")
 #device = torch.device("cpu")
 
 
-from configparser import ConfigParser
+### Following parameters will be used for both training and testing ###
 config = ConfigParser()
-
-
-### Following parameters must come from training.py ###
-
-# val_ratio = 0.1
-# data_dir = './sorted_nii'
-# 
-# root_dir = '.'
-# 
-# pd = (0.9375*2, 0.9375*2, 3.6)
-# 
-# intensity_max=250
-
-val_ratio = config.getfloat('main', 'val_ratio'))
+config.read('config.ini')
+val_ratio = config.getfloat('main', 'val_ratio')
 data_dir = config.get('main', 'data_dir')
 root_dir = config.get('main', 'root_dir')
 pixel_dim = config.get('main', 'pixel_dim')
@@ -62,6 +52,7 @@ else:
 pixel_intensity_min = config.getfloat('main', 'pixel_intensity_min')
 pixel_intensity_max = config.getfloat('main', 'pixel_intensity_max')
 
+#######################################################################
 
 model = UNet(
     dimensions=3,
@@ -73,7 +64,6 @@ model = UNet(
     norm=Norm.BATCH,
 ).to(device)
 
-#######################################################
 
 print('Reading data from: ' + data_dir)
 
@@ -117,8 +107,7 @@ post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=2)
 post_label = AsDiscrete(to_onehot=True, n_classes=2)
 post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold_values=True)])
 
-model.load_state_dict(torch.load(
-    os.path.join(root_dir, "best_metric_model.pth")))
+model.load_state_dict(torch.load(os.path.join(root_dir, "best_metric_model.pth")))
 model.eval()
 
 with torch.no_grad():
