@@ -11,6 +11,7 @@ from monai.transforms import (
     RandCropByPosNegLabeld,
     RandAffined,
     ScaleIntensityRanged,
+    ScaleIntensityRangePercentilesd,    
     Spacingd,
     ToTensord,
 )
@@ -40,6 +41,8 @@ else:
     pixel_dim = (1.0,1.0,1.0)
 pixel_intensity_min = config.getfloat('main', 'pixel_intensity_min')
 pixel_intensity_max = config.getfloat('main', 'pixel_intensity_max')
+pixel_intensity_percentile_min = config.getfloat('main', 'pixel_intensity_percentile_min')
+pixel_intensity_percentile_max = config.getfloat('main', 'pixel_intensity_percentile_max')
 
 #######################################################################
 
@@ -49,8 +52,12 @@ val_transforms = Compose(
         AddChanneld(keys=["image", "label"]),
         Spacingd(keys=["image", "label"], pixdim=pixel_dim, mode=("bilinear", "nearest")),
         Orientationd(keys=["image", "label"], axcodes="LPS"),
-        ScaleIntensityRanged(
-            keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
+        #ScaleIntensityRanged(
+        #    keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
+        #    b_min=0.0, b_max=1.0, clip=True,
+        #),
+        ScaleIntensityRangePercentilesd(
+            keys=["image"], lower=pixel_intensity_percentile_min, upper=pixel_intensity_percentile_max,
             b_min=0.0, b_max=1.0, clip=True,
         ),
         CropForegroundd(keys=["image", "label"], source_key="image"),
@@ -92,3 +99,6 @@ model_unet = UNet(
     norm=Norm.BATCH,
 )
 
+
+post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=2)
+post_label = AsDiscrete(to_onehot=True, n_classes=2)

@@ -36,10 +36,7 @@ device = torch.device("cuda:0")
 model = model_unet.to(device)
 
 #dice_metric = DiceMetric(include_background=True, reduction="mean")
-
-post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=2)
-post_label = AsDiscrete(to_onehot=True, n_classes=2)
-post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold_values=True)])
+#post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold_values=True)])
 
 model.load_state_dict(torch.load(os.path.join(root_dir, "best_metric_model.pth")))
 model.eval()

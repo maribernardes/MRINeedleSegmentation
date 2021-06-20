@@ -11,6 +11,7 @@ from monai.transforms import (
     RandCropByPosNegLabeld,
     RandAffined,
     ScaleIntensityRanged,
+    ScaleIntensityRangePercentilesd,
     Spacingd,
     ToTensord,
 )
@@ -47,8 +48,12 @@ train_transforms = Compose(
         AddChanneld(keys=["image", "label"]),
         Spacingd(keys=["image", "label"], pixdim=pixel_dim, mode=("bilinear", "nearest")),
         Orientationd(keys=["image", "label"], axcodes="LPS"),
-        ScaleIntensityRanged(
-            keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
+        #ScaleIntensityRanged(
+        #    keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
+        #    b_min=0.0, b_max=1.0, clip=True,
+        #),
+        ScaleIntensityRangePercentilesd(
+            keys=["image"], lower=pixel_intensity_percentile_min, upper=pixel_intensity_percentile_max,
             b_min=0.0, b_max=1.0, clip=True,
         ),
         CropForegroundd(keys=["image", "label"], source_key="image"),
@@ -111,7 +116,6 @@ model = model_unet.to(device)
 loss_function = DiceLoss(to_onehot_y=True, softmax=True)
 optimizer = torch.optim.Adam(model.parameters(), 1e-4)
 
-
 max_epochs = 600
 #max_epochs = 600
 val_interval = 2
@@ -119,8 +123,6 @@ best_metric = -1
 best_metric_epoch = -1
 epoch_loss_values = []
 metric_values = []
-post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=2)
-post_label = AsDiscrete(to_onehot=True, n_classes=2)
 
 for epoch in range(max_epochs):
     print("-" * 10)
@@ -192,7 +194,6 @@ for epoch in range(max_epochs):
             #writer.add_image('segmentation', img_grid)
             writer.flush()
 
-            
 
 
 print(f"train completed, best_metric: {best_metric:.4f} "
