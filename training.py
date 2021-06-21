@@ -39,7 +39,7 @@ from common import *
 from common import *
 
 
-def run(param, intput_path):
+def run(param, intput_path, train_files, val_files):
     
     #--------------------------------------------------------------------------------
     # Prepare tensorboard
@@ -104,24 +104,6 @@ def run(param, intput_path):
     )
     
     
-    print('Reading data from: ' + param.data_dir)
-    
-    train_images = sorted(glob.glob(os.path.join(param.data_dir, "images", "*.nii.gz")))
-    train_labels = sorted(glob.glob(os.path.join(param.data_dir, "labels", "*.nii.gz")))
-    
-    data_dicts = [
-        {"image": image_name, "label": label_name}
-        for image_name, label_name in zip(train_images, train_labels)
-    ]
-    
-    n_total = len(data_dicts)
-    n_val = round(n_total * param.val_ratio)
-    
-    print('Total data size:      ' + str(n_total))
-    print('Validation data size: ' + str(n_val))
-    
-    train_files, val_files = data_dicts[:-n_val], data_dicts[-n_val:]
-
     #sl = 8
     # # plot the slice [:, :, sl]
     # plt.figure("check", (12, 6))
@@ -200,7 +182,7 @@ def run(param, intput_path):
                         val_data["label"].to(device),
                     )
                     #roi_size = (160, 160, 160)
-                    roi_size = window_size
+                    roi_size = param.window_size
                     sw_batch_size = 4
                     val_outputs = sliding_window_inference(
                         val_inputs, roi_size, sw_batch_size, model)
@@ -219,7 +201,7 @@ def run(param, intput_path):
                     best_metric = metric
                     best_metric_epoch = epoch + 1
                     torch.save(model.state_dict(), os.path.join(
-                        root_dir, model_file))
+                        param.root_dir, param.model_file))
                     print("saved new best metric model")
                 print(
                     f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
@@ -239,7 +221,7 @@ def run(param, intput_path):
     print(f"train completed, best_metric: {best_metric:.4f} "
           f"at epoch: {best_metric_epoch}")
     
-    if use_matplotlib == 1:
+    if param.use_matplotlib == 1:
         plt.figure("train", (12, 6))
         plt.subplot(1, 2, 1)
         plt.title("Epoch Average Loss")
@@ -273,7 +255,15 @@ def main(argv):
     print('Loading parameters from: ' + config_file)
     param = TrainingParam(config_file)
 
-    run(param, input_path)
+    train_files = generateFileList(param, 'train')
+    val_files = generateFileList(param, 'val')
+    
+    n_train = len(train_files)
+    n_val = len(val_files)
+    print('Training data size: ' + str(n_train))
+    print('Validation data size: ' + str(n_val))    
+
+    run(param, input_path, train_files, val_files)
 
 
   except Exception as e:

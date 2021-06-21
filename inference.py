@@ -35,27 +35,9 @@ from common import *
 
 
 
-def run(param, input_path, output_path, image_type):
+def run(param, input_path, output_path, image_type, val_files):
 
     val_transforms =  loadValidationTransforms(param)
-
-    print('Reading data from: ' + param.data_dir)
-    
-    train_images = sorted(glob.glob(os.path.join(param.data_dir, "images", "*.nii.gz")))
-    train_labels = sorted(glob.glob(os.path.join(param.data_dir, "labels", "*.nii.gz")))
-    
-    data_dicts = [
-        {"image": image_name, "label": label_name}
-        for image_name, label_name in zip(train_images, train_labels)
-    ]
-    
-    n_total = len(data_dicts)
-    n_val = round(n_total * param.val_ratio)
-    
-    print('Total data size:      ' + str(n_total))
-    print('Validation data size: ' + str(n_val))
-    
-    train_files, val_files = data_dicts[:-n_val], data_dicts[-n_val:]
 
     #val_loader = getValidationLoader(param)
     #val_loader = getLoader(param, val_files, val_transforms)
@@ -158,7 +140,12 @@ def main(argv):
     print('Loading parameters from: ' + config_file)
     param = InferenceParam(config_file)
 
-    run(param, input_path, output_path, image_type)
+    val_files = generateFileList(param, 'val')
+    n_val = len(val_files)
+    
+    print('Validation data size: ' + str(n_val))
+    
+    run(param, input_path, output_path, image_type, val_files)
 
 
   except Exception as e:

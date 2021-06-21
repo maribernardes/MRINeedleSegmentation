@@ -143,6 +143,20 @@ def loadValidationTransforms(param):
 #     return loader
 
 
+def generateFileList(param, prefix):
+    
+    print('Reading data from: ' + param.data_dir)
+    images = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_images", "*.nii.gz")))
+    labels = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_labels", "*.nii.gz")))
+    
+    data_dicts = [
+        {"image": image_name, "label": label_name}
+        for image_name, label_name in zip(images, labels)
+    ]
+
+    return data_dicts
+
+
 
 #--------------------------------------------------------------------------------
 # Model
