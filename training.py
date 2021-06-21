@@ -126,8 +126,7 @@ train_loader = DataLoader(train_ds, batch_size=2, shuffle=True, num_workers=4)
 #--------------------------------------------------------------------------------
 
 # standard PyTorch program style: create UNet, DiceLoss and Adam optimizer
-device = torch.device("cuda:0")
-#device = torch.device("cpu")
+device = torch.device(training_device_name)
 model = model_unet.to(device)
 
 # Loss function & optimizer

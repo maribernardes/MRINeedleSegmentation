@@ -38,36 +38,40 @@ def getvector(config, section, key):
         return value
     else:
         return None
+
     
 ### Following parameters will be used for both training and testing ###
 config = ConfigParser()
 config.read('config.ini')
 
-val_ratio = config.getfloat('main', 'val_ratio')
-data_dir = config.get('main', 'data_dir')
-root_dir = config.get('main', 'root_dir')
+val_ratio = config.getfloat('common', 'val_ratio')
+data_dir = config.get('common', 'data_dir')
+root_dir = config.get('common', 'root_dir')
 
-pixel_dim = getvector(config, 'main', 'pixel_dim')
+pixel_dim = getvector(config, 'common', 'pixel_dim')
 if pixel_dim == None:
     pixel_dim = (1.0,1.0,1.0)
 
-window_size = getvector(config, 'main', 'window_size')
+window_size = getvector(config, 'common', 'window_size')
 if window_size:
     window_size = [int(s) for s in window_size]
     window_size = tuple(window_size)
 else:
     window_size = (160,160,160)
 
-pixel_intensity_min = config.getfloat('main', 'pixel_intensity_min')
-pixel_intensity_max = config.getfloat('main', 'pixel_intensity_max')
-pixel_intensity_percentile_min = config.getfloat('main', 'pixel_intensity_percentile_min')
-pixel_intensity_percentile_max = config.getfloat('main', 'pixel_intensity_percentile_max')
+pixel_intensity_min = config.getfloat('common', 'pixel_intensity_min')
+pixel_intensity_max = config.getfloat('common', 'pixel_intensity_max')
+pixel_intensity_percentile_min = config.getfloat('common', 'pixel_intensity_percentile_min')
+pixel_intensity_percentile_max = config.getfloat('common', 'pixel_intensity_percentile_max')
 
-use_tensorboard = int(config.get('main', 'use_tensorboard'))
-use_matplotlib = int(config.get('main', 'use_matplotlib'))
-max_epochs = int(config.get('main', 'max_epochs'))
+model_file = config.get('common', 'model_file')
 
-model_file = config.get('main', 'model_file')
+use_tensorboard = int(config.get('training', 'use_tensorboard'))
+use_matplotlib = int(config.get('training', 'use_matplotlib'))
+max_epochs = int(config.get('training', 'max_epochs'))
+
+training_device_name = config.get('training', 'training_device_name')
+inference_device_name = config.get('inference', 'inference_device_name')
 
 
 #--------------------------------------------------------------------------------

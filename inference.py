@@ -35,8 +35,7 @@ from common import *
 # Model
 #--------------------------------------------------------------------------------
 
-device = torch.device("cuda:0")
-#device = torch.device("cpu")
+device = torch.device(inference_device_name)
 
 model = model_unet.to(device)
 
