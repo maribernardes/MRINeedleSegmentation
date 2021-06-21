@@ -48,21 +48,21 @@ train_transforms = Compose(
         AddChanneld(keys=["image", "label"]),
         Spacingd(keys=["image", "label"], pixdim=pixel_dim, mode=("bilinear", "nearest")),
         Orientationd(keys=["image", "label"], axcodes="LPS"),
-        #ScaleIntensityRanged(
-        #    keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
-        #    b_min=0.0, b_max=1.0, clip=True,
-        #),
-        ScaleIntensityRangePercentilesd(
-            keys=["image"], lower=pixel_intensity_percentile_min, upper=pixel_intensity_percentile_max,
+        ScaleIntensityRanged(
+            keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
             b_min=0.0, b_max=1.0, clip=True,
         ),
+        # ScaleIntensityRangePercentilesd(
+        #     keys=["image"], lower=pixel_intensity_percentile_min, upper=pixel_intensity_percentile_max,
+        #     b_min=0.0, b_max=1.0, clip=True,
+        # ),
         CropForegroundd(keys=["image", "label"], source_key="image"),
         RandCropByPosNegLabeld(
             keys=["image", "label"],
             label_key="label",
             #spatial_size=(96,96,96),
             #spatial_size=(32, 32, 16),
-            spatial_size=(80, 80, 16),
+            spatial_size=window_size,
             pos=1,
             neg=1,
             num_samples=4,
@@ -159,7 +159,8 @@ for epoch in range(max_epochs):
                     val_data["image"].to(device),
                     val_data["label"].to(device),
                 )
-                roi_size = (160, 160, 160)
+                #roi_size = (160, 160, 160)
+                roi_size = window_size
                 sw_batch_size = 4
                 val_outputs = sliding_window_inference(
                     val_inputs, roi_size, sw_batch_size, model)

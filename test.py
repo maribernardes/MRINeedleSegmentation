@@ -48,7 +48,7 @@ with torch.no_grad():
     metric_count = 0
     
     for i, val_data in enumerate(val_loader):
-        roi_size = (160, 160, 160)
+        roi_size = window_size
         sw_batch_size = 4
 
         val_images, val_labels = val_data["image"].to(device), val_data["label"].to(device)

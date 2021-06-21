@@ -24,6 +24,16 @@ import shutil
 
 from monai.data import CacheDataset, DataLoader, Dataset
 
+def getvector(config, section, key):
+    value = config.get(section, key)
+    if value:
+        value = value.split(',')
+        value = [float(s) for s in value]
+        value = tuple(value)
+        return value
+    else:
+        return None
+    
 
 ### Following parameters will be used for both training and testing ###
 config = ConfigParser()
@@ -32,13 +42,18 @@ config.read('config.ini')
 val_ratio = config.getfloat('main', 'val_ratio')
 data_dir = config.get('main', 'data_dir')
 root_dir = config.get('main', 'root_dir')
-pixel_dim = config.get('main', 'pixel_dim')
-if pixel_dim:
-    pixel_dim = pixel_dim.split(',')
-    pixel_dim = [float(s) for s in pixel_dim]
-    pixel_dim = tuple(pixel_dim)
-else:
+
+pixel_dim = getvector(config, 'main', 'pixel_dim')
+if pixel_dim == None:
     pixel_dim = (1.0,1.0,1.0)
+
+window_size = getvector(config, 'main', 'window_size')
+if window_size:
+    window_size = [int(s) for s in window_size]
+    window_size = tuple(window_size)
+else:
+    window_size = (160,160,160)
+
 pixel_intensity_min = config.getfloat('main', 'pixel_intensity_min')
 pixel_intensity_max = config.getfloat('main', 'pixel_intensity_max')
 pixel_intensity_percentile_min = config.getfloat('main', 'pixel_intensity_percentile_min')
@@ -52,14 +67,14 @@ val_transforms = Compose(
         AddChanneld(keys=["image", "label"]),
         Spacingd(keys=["image", "label"], pixdim=pixel_dim, mode=("bilinear", "nearest")),
         Orientationd(keys=["image", "label"], axcodes="LPS"),
-        #ScaleIntensityRanged(
-        #    keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
-        #    b_min=0.0, b_max=1.0, clip=True,
-        #),
-        ScaleIntensityRangePercentilesd(
-            keys=["image"], lower=pixel_intensity_percentile_min, upper=pixel_intensity_percentile_max,
+        ScaleIntensityRanged(
+            keys=["image"], a_min=pixel_intensity_min, a_max=pixel_intensity_max,
             b_min=0.0, b_max=1.0, clip=True,
         ),
+        # ScaleIntensityRangePercentilesd(
+        #     keys=["image"], lower=pixel_intensity_percentile_min, upper=pixel_intensity_percentile_max,
+        #     b_min=0.0, b_max=1.0, clip=True,
+        # ),
         CropForegroundd(keys=["image", "label"], source_key="image"),
         ToTensord(keys=["image", "label"]),
     ]
