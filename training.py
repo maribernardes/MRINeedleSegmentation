@@ -28,19 +28,30 @@ import tempfile
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.tensorboard import SummaryWriter
 
 import numpy as np
 
 from common import *
 
-# Tensorboard
-writer = SummaryWriter('runs/segmentation_experiment_1')
+#--------------------------------------------------------------------------------
+# Prepare tensorboard
+#--------------------------------------------------------------------------------
 
+# Tensorboard
+if use_tensorboard == 1:
+    from torch.utils.tensorboard import SummaryWriter
+    writer = SummaryWriter('runs/segmentation_experiment_1')
+
+    
 torch.multiprocessing.set_sharing_strategy('file_system')
 print_config()
 
 set_determinism(seed=0)
+
+
+#--------------------------------------------------------------------------------
+# Train/validation datasets
+#--------------------------------------------------------------------------------
 
 train_transforms = Compose(
     [
@@ -88,7 +99,8 @@ print(check_loader)
 check_data = first(check_loader)
 image, label = (check_data["image"][0][0], check_data["label"][0][0])
 print(f"image shape: {image.shape}, label shape: {label.shape}")
-sl = 8
+
+#sl = 8
 # # plot the slice [:, :, sl]
 # plt.figure("check", (12, 6))
 # plt.subplot(1, 2, 1)
@@ -108,15 +120,20 @@ train_ds = CacheDataset(
 # to generate 2 x 4 images for network training
 train_loader = DataLoader(train_ds, batch_size=2, shuffle=True, num_workers=4)
 
+
+#--------------------------------------------------------------------------------
+# Training
+#--------------------------------------------------------------------------------
+
 # standard PyTorch program style: create UNet, DiceLoss and Adam optimizer
 device = torch.device("cuda:0")
 #device = torch.device("cpu")
 model = model_unet.to(device)
 
+# Loss function & optimizer
 loss_function = DiceLoss(to_onehot_y=True, softmax=True)
 optimizer = torch.optim.Adam(model.parameters(), 1e-4)
 
-max_epochs = 600
 #max_epochs = 600
 val_interval = 2
 best_metric = -1
@@ -179,38 +196,39 @@ for epoch in range(max_epochs):
                 best_metric = metric
                 best_metric_epoch = epoch + 1
                 torch.save(model.state_dict(), os.path.join(
-                    root_dir, "best_metric_model.pth"))
+                    root_dir, model_file))
                 print("saved new best metric model")
             print(
                 f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
                 f"\nbest mean dice: {best_metric:.4f} "
                 f"at epoch: {best_metric_epoch}"
                 )
-            
-            writer.add_scalar("Loss/train", epoch_loss, epoch)
-            writer.add_scalar("Mean Dice", metric, epoch)
 
-            # write to tensorboard
-            #img_grid = torchvision.utils.make_grid(val_labels)
-            #writer.add_image('segmentation', img_grid)
-            writer.flush()
+            if use_tensorboard == 1:
+                writer.add_scalar("Loss/train", epoch_loss, epoch)
+                writer.add_scalar("Mean Dice", metric, epoch)
 
+                # write to tensorboard
+                #img_grid = torchvision.utils.make_grid(val_labels)
+                #writer.add_image('segmentation', img_grid)
+                writer.flush()
 
 
 print(f"train completed, best_metric: {best_metric:.4f} "
       f"at epoch: {best_metric_epoch}")
 
-plt.figure("train", (12, 6))
-plt.subplot(1, 2, 1)
-plt.title("Epoch Average Loss")
-x = [i + 1 for i in range(len(epoch_loss_values))]
-y = epoch_loss_values
-plt.xlabel("epoch")
-plt.plot(x, y)
-plt.subplot(1, 2, 2)
-plt.title("Val Mean Dice")
-x = [val_interval * (i + 1) for i in range(len(metric_values))]
-y = metric_values
-plt.xlabel("epoch")
-plt.plot(x, y)
-plt.show()
+if use_matplotlib == 1:
+    plt.figure("train", (12, 6))
+    plt.subplot(1, 2, 1)
+    plt.title("Epoch Average Loss")
+    x = [i + 1 for i in range(len(epoch_loss_values))]
+    y = epoch_loss_values
+    plt.xlabel("epoch")
+    plt.plot(x, y)
+    plt.subplot(1, 2, 2)
+    plt.title("Val Mean Dice")
+    x = [val_interval * (i + 1) for i in range(len(metric_values))]
+    y = metric_values
+    plt.xlabel("epoch")
+    plt.plot(x, y)
+    plt.show()

@@ -8,8 +8,8 @@ from monai.transforms import (
     CropForegroundd,
     LoadImaged,
     Orientationd,
-    RandCropByPosNegLabeld,
-    RandAffined,
+#    RandCropByPosNegLabeld,
+#    RandAffined,
     ScaleIntensityRanged,
     ScaleIntensityRangePercentilesd,    
     Spacingd,
@@ -24,6 +24,11 @@ import shutil
 
 from monai.data import CacheDataset, DataLoader, Dataset
 
+
+#--------------------------------------------------------------------------------
+# Load configurations
+#--------------------------------------------------------------------------------
+
 def getvector(config, section, key):
     value = config.get(section, key)
     if value:
@@ -34,7 +39,6 @@ def getvector(config, section, key):
     else:
         return None
     
-
 ### Following parameters will be used for both training and testing ###
 config = ConfigParser()
 config.read('config.ini')
@@ -59,7 +63,16 @@ pixel_intensity_max = config.getfloat('main', 'pixel_intensity_max')
 pixel_intensity_percentile_min = config.getfloat('main', 'pixel_intensity_percentile_min')
 pixel_intensity_percentile_max = config.getfloat('main', 'pixel_intensity_percentile_max')
 
-#######################################################################
+use_tensorboard = int(config.get('main', 'use_tensorboard'))
+use_matplotlib = int(config.get('main', 'use_matplotlib'))
+max_epochs = int(config.get('main', 'max_epochs'))
+
+model_file = config.get('main', 'model_file')
+
+
+#--------------------------------------------------------------------------------
+# Validation transform
+#--------------------------------------------------------------------------------
 
 val_transforms = Compose(
     [
@@ -79,6 +92,11 @@ val_transforms = Compose(
         ToTensord(keys=["image", "label"]),
     ]
 )
+
+
+#--------------------------------------------------------------------------------
+# Validation transform
+#--------------------------------------------------------------------------------
 
 print('Reading data from: ' + data_dir)
 
@@ -104,6 +122,10 @@ val_ds = CacheDataset(
 val_loader = DataLoader(val_ds, batch_size=1, num_workers=4)
 
 
+#--------------------------------------------------------------------------------
+# Model
+#--------------------------------------------------------------------------------
+
 model_unet = UNet(
     dimensions=3,
     in_channels=1,
@@ -113,7 +135,6 @@ model_unet = UNet(
     num_res_units=2,
     norm=Norm.BATCH,
 )
-
 
 post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=2)
 post_label = AsDiscrete(to_onehot=True, n_classes=2)

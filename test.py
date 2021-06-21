@@ -30,6 +30,11 @@ from configparser import ConfigParser
 
 from common import *
 
+
+#--------------------------------------------------------------------------------
+# Model
+#--------------------------------------------------------------------------------
+
 device = torch.device("cuda:0")
 #device = torch.device("cpu")
 
@@ -38,7 +43,14 @@ model = model_unet.to(device)
 #dice_metric = DiceMetric(include_background=True, reduction="mean")
 #post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold_values=True)])
 
-model.load_state_dict(torch.load(os.path.join(root_dir, "best_metric_model.pth")))
+#model.load_state_dict(torch.load(os.path.join(root_dir, "best_metric_model.pth")))
+model.load_state_dict(torch.load(os.path.join(root_dir, model_file)))
+
+
+#--------------------------------------------------------------------------------
+# Validate
+#--------------------------------------------------------------------------------
+
 model.eval()
 
 with torch.no_grad():
