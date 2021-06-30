@@ -24,11 +24,15 @@ def main(argv):
     input_dir = './sorted'
     output_dir = './sorted_nii'
 
-    os.makedirs(output_dir+'/images', exist_ok=True)
-    os.makedirs(output_dir+'/labels', exist_ok=True)
-    convert('images', input_dir, output_dir)
-    convert('labels', input_dir, output_dir)
+    os.makedirs(output_dir+'/training_images', exist_ok=True)
+    os.makedirs(output_dir+'/training_labels', exist_ok=True)
+    convert('training_images', input_dir, output_dir)
+    convert('training_labels', input_dir, output_dir)
 
+    os.makedirs(output_dir+'/val_images', exist_ok=True)
+    os.makedirs(output_dir+'/val_labels', exist_ok=True)
+    convert('val_images', input_dir, output_dir)
+    convert('val_labels', input_dir, output_dir)
                             
 if __name__ == "__main__":
     main(sys.argv[1:])
