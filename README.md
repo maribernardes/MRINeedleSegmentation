@@ -116,7 +116,25 @@ To train the model, run the following script:
 $ IceBallSegmentation/training.py config.ini
 ~~~~
 
+### Monitoring the training process using TensorBoard
+
 If you have TensorBoard installed on the system, you can monitor the loss function from the web browser.
+To activate it, edit the following line in the configuration file:
+
+~~~~
+[training]
+use_tensorboard = 1
+~~~~
+
+Launch TensorBoard using as follows (make sure to change the current directory to where
+the training script is running, as TensorBoard reads data from the file under 'runs/'):
+
+~~~~
+$ cd <working directory>
+$ tensorboard --logdir=runs
+~~~~
+
+Then, open http://localhost:6006/ from a web browser.
 
 
 ### Validation
