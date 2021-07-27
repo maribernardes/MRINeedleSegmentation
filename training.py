@@ -189,6 +189,7 @@ def run(param, train_files, val_files):
                         y=val_labels,
                         include_background=False,
                     )
+                    print('DICE = ' + str(value))
                     metric_count += len(value)
                     metric_sum += value.sum().item()
                 metric = metric_sum / metric_count

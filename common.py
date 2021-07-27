@@ -49,7 +49,6 @@ class Param():
 
     def readParameters(self):
  
-        self.val_ratio = self.config.getfloat('common', 'val_ratio')
         self.data_dir = self.config.get('common', 'data_dir')
         self.root_dir = self.config.get('common', 'root_dir')
         
