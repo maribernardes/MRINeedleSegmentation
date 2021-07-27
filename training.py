@@ -36,10 +36,7 @@ import numpy as np
 from common import *
 
 
-from common import *
-
-
-def run(param, intput_path, train_files, val_files):
+def run(param, train_files, val_files):
     
     #--------------------------------------------------------------------------------
     # Prepare tensorboard
@@ -139,7 +136,6 @@ def run(param, intput_path, train_files, val_files):
     loss_function = DiceLoss(to_onehot_y=True, softmax=True)
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
     
-    #max_epochs = 600
     val_interval = 2
     best_metric = -1
     best_metric_epoch = -1
@@ -244,13 +240,13 @@ def main(argv):
     parser = argparse.ArgumentParser(description="Apply a saved DL model for segmentation.")
     parser.add_argument('cfg', metavar='CONFIG_FILE', type=str, nargs=1,
                         help='Configuration file')
-    parser.add_argument('input', metavar='INPUT_PATH', type=str, nargs=1,
-                        help='A file or a folder that contains images.')
+    #parser.add_argument('input', metavar='INPUT_PATH', type=str, nargs=1,
+    #help='A file or a folder that contains images.')
             
     args = parser.parse_args(argv)
 
     config_file = args.cfg[0]
-    input_path = args.input[0]
+    #input_path = args.input[0]
 
     print('Loading parameters from: ' + config_file)
     param = TrainingParam(config_file)
@@ -263,7 +259,7 @@ def main(argv):
     print('Training data size: ' + str(n_train))
     print('Validation data size: ' + str(n_val))    
 
-    run(param, input_path, train_files, val_files)
+    run(param, train_files, val_files)
 
 
   except Exception as e:

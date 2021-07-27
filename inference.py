@@ -57,9 +57,8 @@ def run(param, input_path, output_path, image_type, val_files):
     model = model_unet.to(device)
     
     #dice_metric = DiceMetric(include_background=True, reduction="mean")
-    #post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold_values=True)])
+    post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold_values=True)])
     
-    #model.load_state_dict(torch.load(os.path.join(root_dir, "best_metric_model.pth")))
     model.load_state_dict(torch.load(os.path.join(param.root_dir, param.model_file)))
     
     
@@ -82,14 +81,13 @@ def run(param, input_path, output_path, image_type, val_files):
             val_images, val_labels = val_data["image"].to(device), val_data["label"].to(device)
             val_outputs = sliding_window_inference(val_images, roi_size, sw_batch_size, model)
             val_outputs = post_pred(val_outputs)
-            #val_outputs = post_trans(val_outputs)        
+            val_outputs = post_trans(val_outputs)        
             val_labels = post_label(val_labels)
             value = compute_meandice(
                 y_pred=val_outputs,
                 y=val_labels,
                 include_background=False,
             )
-            print(value)
             metric_count += len(value)
             metric_sum += value.sum().item()        
             #metric_sum += value.item() * len(value)
@@ -108,6 +106,7 @@ def run(param, input_path, output_path, image_type, val_files):
             # plt.imshow(torch.argmax(
             #     val_outputs, dim=1).detach().cpu()[0, :, :, sl])
             # plt.show()
+            
             val_output_label = torch.argmax(val_outputs, dim=1, keepdim=True)
             saver.save_batch(val_output_label, val_data['image_meta_dict'])
             
