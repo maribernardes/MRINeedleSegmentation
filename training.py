@@ -102,18 +102,6 @@ def run(param, train_files, val_files):
     )
     
     
-    #sl = 8
-    # # plot the slice [:, :, sl]
-    # plt.figure("check", (12, 6))
-    # plt.subplot(1, 2, 1)
-    # plt.title("image")
-    # plt.imshow(image[:, :, sl], cmap="gray")
-    # plt.subplot(1, 2, 2)
-    # plt.title("label")
-    # plt.imshow(label[:, :, sl])
-    # plt.show()
-
-
     val_ds = CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=4)
     val_loader = DataLoader(val_ds, batch_size=1, num_workers=4)
 
@@ -187,20 +175,8 @@ def run(param, train_files, val_files):
                     
                     val_outputs = [post_pred(i) for i in decollate_batch(val_outputs)]
                     val_labels = [post_label(i) for i in decollate_batch(val_labels)]
-                    #val_outputs = post_pred(val_outputs)
-                    #val_labels = post_label(val_labels)
-                    #value = compute_meandice(
-                    #    y_pred=val_outputs,
-                    #    y=val_labels,
-                    #    include_background=False,
-                    #)
                     dice_metric(y_pred=val_outputs, y=val_labels)
-                    #print('DICE = ' + str(value))
-                    #metric_count += len(value)
-                    #metric_sum += value.sum().item()
                     
-                #metric = metric_sum / metric_count
-                
                 # aggregate the final mean dice result
                 metric = dice_metric.aggregate().item()
                 # reset the status for next validation round
@@ -265,8 +241,8 @@ def main(argv):
     print('Loading parameters from: ' + config_file)
     param = TrainingParam(config_file)
 
-    train_files = generateFileList(param, 'train')
-    val_files = generateFileList(param, 'val')
+    train_files = generateLabeledFileList(param, 'train')
+    val_files = generateLabeledFileList(param, 'val')
     
     n_train = len(train_files)
     n_val = len(val_files)

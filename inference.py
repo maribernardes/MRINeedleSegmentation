@@ -35,9 +35,10 @@ from common import *
 
 
 
-def run(param, input_path, output_path, image_type, val_files):
+def run(param, output_path, image_type, val_files):
 
-    val_transforms =  loadValidationTransforms(param)
+    #val_transforms =  loadValidationTransforms(param)
+    val_transforms =  loadInferenceTransforms(param)
 
     val_ds = CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=4)
     # val_ds = Dataset(data=val_files, transform=val_transforms)
@@ -72,8 +73,8 @@ def run(param, input_path, output_path, image_type, val_files):
         for i, val_data in enumerate(val_loader):
             roi_size = param.window_size
             sw_batch_size = 4
-    
-            val_images, val_labels = val_data["image"].to(device), val_data["label"].to(device)
+            
+            val_images = val_data["image"].to(device)
             val_outputs = sliding_window_inference(val_images, roi_size, sw_batch_size, model)
             
             val_output_label = torch.argmax(val_outputs, dim=1, keepdim=True)
@@ -104,13 +105,11 @@ def main(argv):
 
     print('Loading parameters from: ' + config_file)
     param = InferenceParam(config_file)
+    files = generateFileList(input_path)
+    n_files = len(files)
+    print('# of images: ' + str(n_files))
 
-    val_files = generateFileList(param, 'val')
-    n_val = len(val_files)
-    
-    print('Validation data size: ' + str(n_val))
-    
-    run(param, input_path, output_path, image_type, val_files)
+    run(param, output_path, image_type, files)
 
 
   except Exception as e:

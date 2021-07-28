@@ -97,7 +97,7 @@ class InferenceParam(Param):
 
 
 #--------------------------------------------------------------------------------
-# Validation transform
+# Load Transforms
 #--------------------------------------------------------------------------------
 
 def loadValidationTransforms(param):
@@ -123,28 +123,36 @@ def loadValidationTransforms(param):
     return val_transforms
 
 
-
-# def getLoader(param, data_dicts, transforms):
-#     
-#     ds = CacheDataset(
-#         data=data_dicts, transform=transforms, cache_rate=1.0, num_workers=4)
-#     # val_ds = Dataset(data=val_files, transform=val_transforms)
-#     loader = DataLoader(ds, batch_size=1, num_workers=4)
-# 
-#     # # TODO: THe following lines are not needed.
-#     # check_ds = Dataset(data=data_dicts, transform=transforms)
-#     # check_loader = DataLoader(check_ds, batch_size=1)
-#     # print(check_loader)
-#     # check_data = first(check_loader)
-#     # image, label = (check_data["image"][0][0], check_data["label"][0][0])
-#     # print(f"image shape: {image.shape}, label shape: {label.shape}")
-#     
-#     return loader
-
-
-def generateFileList(param, prefix):
+def loadInferenceTransforms(param):
     
-    print('Reading data from: ' + param.data_dir)
+    val_transforms = Compose(
+        [
+            LoadImaged(keys=["image"]),
+            AddChanneld(keys=["image"]),
+            Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")),
+            Orientationd(keys=["image"], axcodes="LPS"),
+            ScaleIntensityRanged(
+                keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
+                b_min=0.0, b_max=1.0, clip=True,
+            ),
+            # ScaleIntensityRangePercentilesd(
+            #     keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
+            #     b_min=0.0, b_max=1.0, clip=True,
+            # ),
+            CropForegroundd(keys=["image"], source_key="image"),
+            ToTensord(keys=["image"]),
+        ]
+    )
+    return val_transforms
+
+
+#--------------------------------------------------------------------------------
+# Generate a file list
+#--------------------------------------------------------------------------------
+
+def generateLabeledFileList(param, prefix):
+    
+    print('Reading labeled images from: ' + param.data_dir)
     images = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_images", "*.nii.gz")))
     labels = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_labels", "*.nii.gz")))
     
@@ -156,6 +164,17 @@ def generateFileList(param, prefix):
     return data_dicts
 
 
+def generateFileList(srcdir):
+    
+    print('Reading images from: ' + srcdir)
+    images = sorted(glob.glob(os.path.join(srcdir, "*.nii.gz")))
+    
+    data_dicts = [
+        {"image": image_name} for image_name in images
+    ]
+
+    return data_dicts
+    
 
 #--------------------------------------------------------------------------------
 # Model
