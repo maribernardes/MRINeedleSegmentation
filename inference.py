@@ -16,7 +16,7 @@ from monai.transforms import (
 )
 from monai.metrics import compute_meandice, DiceMetric
 from monai.inferers import sliding_window_inference
-from monai.data import CacheDataset, DataLoader, Dataset, NiftiSaver
+from monai.data import CacheDataset, DataLoader, Dataset, NiftiSaver, decollate_batch
 from monai.config import print_config
 from monai.apps import download_and_extract
 
@@ -39,14 +39,10 @@ def run(param, input_path, output_path, image_type, val_files):
 
     val_transforms =  loadValidationTransforms(param)
 
-    #val_loader = getValidationLoader(param)
-    #val_loader = getLoader(param, val_files, val_transforms)
-
     val_ds = CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=4)
     # val_ds = Dataset(data=val_files, transform=val_transforms)
     val_loader = DataLoader(val_ds, batch_size=1, num_workers=4)
     
-
     #--------------------------------------------------------------------------------
     # Model
     #--------------------------------------------------------------------------------
@@ -55,9 +51,8 @@ def run(param, input_path, output_path, image_type, val_files):
     
     device = torch.device(param.inference_device_name)
     model = model_unet.to(device)
-    
-    #dice_metric = DiceMetric(include_background=True, reduction="mean")
-    post_trans = Compose([Activations(sigmoid=True), AsDiscrete(threshold_values=True)])
+
+    dice_metric = DiceMetric(include_background=False, reduction="mean")
     
     model.load_state_dict(torch.load(os.path.join(param.root_dir, param.model_file)))
     
@@ -80,39 +75,10 @@ def run(param, input_path, output_path, image_type, val_files):
     
             val_images, val_labels = val_data["image"].to(device), val_data["label"].to(device)
             val_outputs = sliding_window_inference(val_images, roi_size, sw_batch_size, model)
-            val_outputs = post_pred(val_outputs)
-            val_outputs = post_trans(val_outputs)        
-            val_labels = post_label(val_labels)
-            value = compute_meandice(
-                y_pred=val_outputs,
-                y=val_labels,
-                include_background=False,
-            )
-            metric_count += len(value)
-            metric_sum += value.sum().item()        
-            #metric_sum += value.item() * len(value)
-            
-            # # plot the slice [:, :, 80]
-            # sl = 15
-            # plt.figure("check", (18, 6))
-            # plt.subplot(1, 3, 1)
-            # plt.title(f"image {i}")
-            # plt.imshow(val_data["image"][0, 0, :, :, sl], cmap="gray")
-            # plt.subplot(1, 3, 2)
-            # plt.title(f"label {i}")
-            # plt.imshow(val_data["label"][0, 0, :, :, sl])
-            # plt.subplot(1, 3, 3)
-            # plt.title(f"output {i}")
-            # plt.imshow(torch.argmax(
-            #     val_outputs, dim=1).detach().cpu()[0, :, :, sl])
-            # plt.show()
             
             val_output_label = torch.argmax(val_outputs, dim=1, keepdim=True)
             saver.save_batch(val_output_label, val_data['image_meta_dict'])
             
-        metric = metric_sum / metric_count
-        print("evaluation metric:", metric)
-
 
 def main(argv):
   try:

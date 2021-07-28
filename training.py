@@ -16,9 +16,10 @@ from monai.transforms import (
     ToTensord,
 )
 from monai.metrics import compute_meandice
+from monai.metrics import DiceMetric
 from monai.losses import DiceLoss
 from monai.inferers import sliding_window_inference
-from monai.data import CacheDataset, DataLoader, Dataset
+from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
 from monai.config import print_config
 from monai.apps import download_and_extract
 import torch
@@ -135,6 +136,7 @@ def run(param, train_files, val_files):
     # Loss function & optimizer
     loss_function = DiceLoss(to_onehot_y=True, softmax=True)
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
+    dice_metric = DiceMetric(include_background=False, reduction="mean")
     
     val_interval = 2
     best_metric = -1
@@ -182,17 +184,28 @@ def run(param, train_files, val_files):
                     sw_batch_size = 4
                     val_outputs = sliding_window_inference(
                         val_inputs, roi_size, sw_batch_size, model)
-                    val_outputs = post_pred(val_outputs)
-                    val_labels = post_label(val_labels)
-                    value = compute_meandice(
-                        y_pred=val_outputs,
-                        y=val_labels,
-                        include_background=False,
-                    )
-                    print('DICE = ' + str(value))
-                    metric_count += len(value)
-                    metric_sum += value.sum().item()
-                metric = metric_sum / metric_count
+                    
+                    val_outputs = [post_pred(i) for i in decollate_batch(val_outputs)]
+                    val_labels = [post_label(i) for i in decollate_batch(val_labels)]
+                    #val_outputs = post_pred(val_outputs)
+                    #val_labels = post_label(val_labels)
+                    #value = compute_meandice(
+                    #    y_pred=val_outputs,
+                    #    y=val_labels,
+                    #    include_background=False,
+                    #)
+                    dice_metric(y_pred=val_outputs, y=val_labels)
+                    #print('DICE = ' + str(value))
+                    #metric_count += len(value)
+                    #metric_sum += value.sum().item()
+                    
+                #metric = metric_sum / metric_count
+                
+                # aggregate the final mean dice result
+                metric = dice_metric.aggregate().item()
+                # reset the status for next validation round
+                dice_metric.reset()
+                
                 metric_values.append(metric)
                 if metric > best_metric:
                     best_metric = metric
