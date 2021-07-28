@@ -9,7 +9,7 @@ AI-based Iceball segmentation for MRI-guided cryoablation
 Before running the scripts, make sure to install the following python libraries:
  - [MONAI](https://monai.io/)
  - [SimpleITK](https://simpleitk.readthedocs.io/en/v1.1.0/index.html) (for image conversion)
- - tqdm (for showing progress bar for loading images)
+ - tqdm (for showing a progress bar for loading images)
  - [NiBabel](https://nipy.org/nibabel/)
  - (to be added)
 
@@ -45,7 +45,7 @@ In the following instruction, we assume that the workspace is structured as foll
 The script can be obtained from the GitHub repository: 
 
 ~~~~
-$ cd <woking directory>
+$ cd <working directory>
 $ git clone https://github.com/tokjun/IceBallSegmentation
 ~~~~
 
@@ -110,7 +110,7 @@ If the script will output the images in the following directory structure:
 
 ### Prepare a configuration file
 
-Example configuration file can be find in the directory cloned from the repository. Copy it to <working directory> and modify as needed.
+An example configuration file can be found in the directory cloned from the repository. Copy it to <working directory> and modify as needed.
 
 ~~~~
 $ cp IceBallSegmentation/config.sample.ini config.ini
@@ -150,7 +150,7 @@ Then, open http://localhost:6006/ from a web browser.
 
 ## Inference
 
-The trained model (*.pth) can be used for segmentation of unseen image data (images of ice balls not used for training). If you have not trained a model, an example model file ('best_metric_model.pth') is available in the repository.
+The trained model (*.pth) can be used for the segmentation of unseen image data (images of ice balls not used for training). If you have not trained a model, an example model file ('best_metric_model.pth') is available in the repository.
 
 First, copy the trained model to the working directory. Assuming that the model file is named 'best_metric_model.pth':
 
