@@ -1,12 +1,19 @@
 # IceBallSegmentation
 AI-based Iceball segmentation for MRI-guided cryoablation
 
+## Prerequisite
+ - Python 3.8 or later
+
 ## Installation
 
 Before running the scripts, make sure to install the following python libraries:
  - [MONAI](https://monai.io/)
  - [SimpleITK](https://simpleitk.readthedocs.io/en/v1.1.0/index.html) (for image conversion)
+ - tqdm (for showing progress bar for loading images)
+ - [NiBabel](https://nipy.org/nibabel/)
  - (to be added)
+
+## Training
 
 In the following instruction, we assume that the workspace is structured as follows:
 
@@ -109,12 +116,15 @@ Example configuration file can be find in the directory cloned from the reposito
 $ cp IceBallSegmentation/config.sample.ini config.ini
 ~~~~
 
-### Training
+### Training the model
 
 To train the model, run the following script:
 ~~~~
 $ IceBallSegmentation/training.py config.ini
 ~~~~
+
+The result is stored in a *.pth file. The file name can be specified in config.ini using the 'model_file' parameter.
+
 
 ### Monitoring the training process using TensorBoard
 
@@ -137,12 +147,32 @@ $ tensorboard --logdir=runs
 Then, open http://localhost:6006/ from a web browser.
 
 
-### Validation
 
-To apply the model to the validation image and store the results under 'output':
+## Inference
+
+The trained model (*.pth) can be used for segmentation of unseen image data (images of ice balls not used for training). If you have not trained a model, an example model file ('best_metric_model.pth') is available in the repository.
+
+First, copy the trained model to the working directory. Assuming that the model file is named 'best_metric_model.pth':
+
+~~~
+$ cd <working directory>
+$ cp <model directory>/best_metric_model.pth
+~~~
+
+Next, copy unseen images under a folder named 'sample':
+
+~~~
+$ cp <images> sample/
+~~~
+
+Make sure to have the config.ini in the working directory (see the 'Training' section), and the 'model_file' parameter matches the name of the model file. Then run the following command:
+
 ~~~~
-$ IceBallSegmentation/inference.py config.ini sorted_nii output
+$ IceBallSegmentation/inference.py config.ini sample output
 ~~~~
+
+The results are stored under the 'output' directory.
+
 
 
 

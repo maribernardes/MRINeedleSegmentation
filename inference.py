@@ -37,25 +37,27 @@ from common import *
 
 def run(param, output_path, image_type, val_files):
 
-    #val_transforms =  loadValidationTransforms(param)
+    device = torch.device(param.inference_device_name)
+
     val_transforms =  loadInferenceTransforms(param)
 
     val_ds = CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=4)
-    # val_ds = Dataset(data=val_files, transform=val_transforms)
+    #val_ds = Dataset(data=val_files, transform=val_transforms)
+
     val_loader = DataLoader(val_ds, batch_size=1, num_workers=4)
+ 
     
     #--------------------------------------------------------------------------------
     # Model
     #--------------------------------------------------------------------------------
-
+    
     (model_unet, post_pred, post_label) = setupModel()
     
-    device = torch.device(param.inference_device_name)
     model = model_unet.to(device)
-
+    
     dice_metric = DiceMetric(include_background=False, reduction="mean")
     
-    model.load_state_dict(torch.load(os.path.join(param.root_dir, param.model_file)))
+    model.load_state_dict(torch.load(os.path.join(param.root_dir, param.model_file), map_location=device))
     
     
     #--------------------------------------------------------------------------------
@@ -66,7 +68,7 @@ def run(param, output_path, image_type, val_files):
     
     with torch.no_grad():
     
-        saver = NiftiSaver(output_dir=output_path)
+        saver = NiftiSaver(output_dir=output_path, separate_folder=False)
         metric_sum = 0.0
         metric_count = 0
         

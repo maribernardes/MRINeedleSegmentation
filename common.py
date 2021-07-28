@@ -122,7 +122,7 @@ def loadValidationTransforms(param):
     )
     return val_transforms
 
-
+import torch
 def loadInferenceTransforms(param):
     
     val_transforms = Compose(
