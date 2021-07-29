@@ -82,7 +82,7 @@ Before running the script, store the files as follows:
 Then, run convert.py. 
 ~~~~
 $ cd <working directory>
-$ IceBallSegmentation/convert.py
+$ IceBallSegmentation/convert_dataset_to_nifty.sh
 ~~~~
 
 If the script will output the images in the following directory structure:
