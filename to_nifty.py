@@ -23,7 +23,7 @@ def main(argv):
 
     args = []
     try:
-        parser = argparse.ArgumentParser(description="Perform N4ITK Bias Correction for each coil element and combine.")
+        parser = argparse.ArgumentParser(description="Convert iamge files in the specified folder to the Nifty data format.")
         parser.add_argument('src', metavar='SRC_DIR', type=str, nargs=1,
                             help='Source directory.')
         parser.add_argument('dst', metavar='DST_DIR', type=str, nargs=1,

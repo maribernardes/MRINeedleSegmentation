@@ -14,6 +14,7 @@ from monai.transforms import (
     ScaleIntensityRangePercentilesd,    
     Spacingd,
     ToTensord,
+    EnsureTyped,
 )
 from monai.utils import first, set_determinism
 from monai.networks.nets import UNet
@@ -62,13 +63,17 @@ class Param():
             self.window_size = tuple(self.window_size)
         else:
             self.window_size = (160,160,160)
-        
+
+        self.pixel_intensity_scaling = self.config.get('common', 'pixel_intensity_scaling')
         self.pixel_intensity_min = self.config.getfloat('common', 'pixel_intensity_min')
         self.pixel_intensity_max = self.config.getfloat('common', 'pixel_intensity_max')
         self.pixel_intensity_percentile_min = self.config.getfloat('common', 'pixel_intensity_percentile_min')
         self.pixel_intensity_percentile_max = self.config.getfloat('common', 'pixel_intensity_percentile_max')
         
         self.model_file = self.config.get('common', 'model_file')
+
+        self.in_channels = int(self.config.get('common', 'in_channels'))
+        self.out_channels = int(self.config.get('common', 'out_channels'))
 
 
 class TrainingParam(Param):
@@ -102,16 +107,32 @@ class InferenceParam(Param):
 
 def loadValidationTransforms(param):
     
+    if param.pixel_intensity_scaling == 'absolute':
+        print('Intensity scaling by max/min')
+        scaleIntensity = ScaleIntensityRanged(
+            keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
+            b_min=0.0, b_max=1.0, clip=True,
+        )
+    elif param.pixel_intensity_scaling == 'percentile':
+        print('Intensity scaling by percentile')
+        scaleIntensity = ScaleIntensityRangePercentilesd(
+            keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
+            b_min=0.0, b_max=1.0, clip=True,
+            )
+    else: # 'normalize
+        scaleIntensity = NormalizeIntensityd(keys=["image"])
+        
     val_transforms = Compose(
         [
             LoadImaged(keys=["image", "label"]),
             AddChanneld(keys=["image", "label"]),
             Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
             Orientationd(keys=["image", "label"], axcodes="LPS"),
-            ScaleIntensityRanged(
-                keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-                b_min=0.0, b_max=1.0, clip=True,
-            ),
+            scaleIntensity,
+            #ScaleIntensityRanged(
+            #    keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
+            #    b_min=0.0, b_max=1.0, clip=True,
+            #),
             # ScaleIntensityRangePercentilesd(
             #     keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
             #     b_min=0.0, b_max=1.0, clip=True,
@@ -125,22 +146,39 @@ def loadValidationTransforms(param):
 import torch
 def loadInferenceTransforms(param):
     
+    if param.pixel_intensity_scaling == 'absolute':
+        print('Intensity scaling by max/min')
+        scaleIntensity = ScaleIntensityRanged(
+            keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
+            b_min=0.0, b_max=1.0, clip=True,
+        )
+    elif param.pixel_intensity_scaling == 'percentile':
+        print('Intensity scaling by percentile')
+        scaleIntensity = ScaleIntensityRangePercentilesd(
+            keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
+            b_min=0.0, b_max=1.0, clip=True,
+            )
+    else: # 'normalize
+        scaleIntensity = NormalizeIntensityd(keys=["image"])
+        
     val_transforms = Compose(
         [
             LoadImaged(keys=["image"]),
             AddChanneld(keys=["image"]),
             Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")),
             Orientationd(keys=["image"], axcodes="LPS"),
-            ScaleIntensityRanged(
-                keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-                b_min=0.0, b_max=1.0, clip=True,
-            ),
+            scaleIntensity,
+            #ScaleIntensityRanged(
+            #    keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
+            #    b_min=0.0, b_max=1.0, clip=True,
+            #),
             # ScaleIntensityRangePercentilesd(
             #     keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
             #     b_min=0.0, b_max=1.0, clip=True,
             # ),
             CropForegroundd(keys=["image"], source_key="image"),
-            ToTensord(keys=["image"]),
+            #ToTensord(keys=["image"]),
+            EnsureTyped(keys=["image"]),
         ]
     )
     return val_transforms
@@ -180,19 +218,19 @@ def generateFileList(srcdir):
 # Model
 #--------------------------------------------------------------------------------
 
-def setupModel():
+def setupModel(param):
 
     model_unet = UNet(
         dimensions=3,
-        in_channels=1,
-        out_channels=2,
+        in_channels=param.in_channels,
+        out_channels=param.out_channels,
         channels=(16, 32, 64, 128, 256),
         strides=(2, 2, 2, 2),
         num_res_units=2,
         norm=Norm.BATCH,
     )
     
-    post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=2)
-    post_label = AsDiscrete(to_onehot=True, n_classes=2)
+    post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=param.out_channels)
+    post_label = AsDiscrete(to_onehot=True, n_classes=param.out_channels)
 
     return (model_unet, post_pred, post_label)

@@ -12,14 +12,20 @@ from monai.transforms import (
     ScaleIntensityRanged,
     Spacingd,
     ToTensord,
-    Activations,
+    Activationsd,
+    EnsureTyped,
+    Invertd,
+    AsDiscreted,
+    SaveImaged,
 )
+from monai.handlers.utils import from_engine
 from monai.metrics import compute_meandice, DiceMetric
 from monai.inferers import sliding_window_inference
 from monai.data import CacheDataset, DataLoader, Dataset, NiftiSaver, decollate_batch
 from monai.config import print_config
 from monai.apps import download_and_extract
 
+import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import tempfile
@@ -51,14 +57,48 @@ def run(param, output_path, image_type, val_files):
     # Model
     #--------------------------------------------------------------------------------
     
-    (model_unet, post_pred, post_label) = setupModel()
+    (model_unet, post_pred, post_label) = setupModel(param)
     
     model = model_unet.to(device)
     
     dice_metric = DiceMetric(include_background=False, reduction="mean")
     
     model.load_state_dict(torch.load(os.path.join(param.root_dir, param.model_file), map_location=device))
+
+
+
+    #--------------------------------------------------------------------------------
+    # Transforms
+    #--------------------------------------------------------------------------------
+
+    pre_transforms = val_transforms
     
+    # define post transforms
+    post_transforms = Compose([
+        EnsureTyped(keys="pred"),
+        Invertd(
+            keys="pred",  # invert the `pred` data field, also support multiple fields
+            transform=pre_transforms,
+            orig_keys="image",  # get the previously applied pre_transforms information on the `img` data field,
+                              # then invert `pred` based on this information. we can use same info
+                              # for multiple fields, also support different orig_keys for different fields
+            meta_keys="pred_meta_dict",  # key field to save inverted meta data, every item maps to `keys`
+            orig_meta_keys="image_meta_dict",  # get the meta data from `img_meta_dict` field when inverting,
+                                             # for example, may need the `affine` to invert `Spacingd` transform,
+                                             # multiple fields can use the same meta data to invert
+            meta_key_postfix="meta_dict",  # if `meta_keys=None`, use "{keys}_{meta_key_postfix}" as the meta key,
+                                           # if `orig_meta_keys=None`, use "{orig_keys}_{meta_key_postfix}",
+                                           # otherwise, no need this arg during inverting
+            nearest_interp=False,  # don't change the interpolation mode to "nearest" when inverting transforms
+                                   # to ensure a smooth output, then execute `AsDiscreted` transform
+            to_tensor=True,  # convert to PyTorch Tensor after inverting
+        ),
+        Activationsd(keys="pred", sigmoid=True),
+        #AsDiscreted(keys="pred", threshold_values=True),
+        AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
+        SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
+    ])
+
     
     #--------------------------------------------------------------------------------
     # Validate
@@ -68,7 +108,7 @@ def run(param, output_path, image_type, val_files):
     
     with torch.no_grad():
     
-        saver = NiftiSaver(output_dir=output_path, separate_folder=False)
+        #saver = NiftiSaver(output_dir=output_path, separate_folder=False)
         metric_sum = 0.0
         metric_count = 0
         
@@ -76,11 +116,13 @@ def run(param, output_path, image_type, val_files):
             roi_size = param.window_size
             sw_batch_size = 4
             
-            val_images = val_data["image"].to(device)
-            val_outputs = sliding_window_inference(val_images, roi_size, sw_batch_size, model)
-            
-            val_output_label = torch.argmax(val_outputs, dim=1, keepdim=True)
-            saver.save_batch(val_output_label, val_data['image_meta_dict'])
+            val_inputs = val_data["image"].to(device)
+            val_data["pred"] = sliding_window_inference(val_inputs, roi_size, sw_batch_size, model)
+            val_data = [post_transforms(i) for i in decollate_batch(val_data)]
+            val_outputs = from_engine(["pred"])(val_data)
+            #val_output_label = torch.argmax(val_outputs, dim=1, keepdim=True)
+            #saver.save_batch(val_output_label, val_data['image_meta_dict'])            
+
             
 
 def main(argv):

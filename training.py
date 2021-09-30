@@ -12,6 +12,7 @@ from monai.transforms import (
     RandAffined,
     ScaleIntensityRanged,
     ScaleIntensityRangePercentilesd,
+    NormalizeIntensityd,
     Spacingd,
     ToTensord,
 )
@@ -58,19 +59,35 @@ def run(param, train_files, val_files):
     #--------------------------------------------------------------------------------
     # Train/validation datasets
     #--------------------------------------------------------------------------------
-    
+
     val_transforms = loadValidationTransforms(param)
-    
+    scaleIntensity = None
+    if param.pixel_intensity_scaling == 'absolute':
+        print('Intensity scaling by max/min')
+        scaleIntensity = ScaleIntensityRanged(
+            keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
+            b_min=0.0, b_max=1.0, clip=True,
+        )
+    elif param.pixel_intensity_scaling == 'percentile':
+        print('Intensity scaling by percentile')
+        scaleIntensity = ScaleIntensityRangePercentilesd(
+            keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
+            b_min=0.0, b_max=1.0, clip=True,
+            )
+    else: # 'normalize
+        scaleIntensity = NormalizeIntensityd(keys=["image"])
+        
     train_transforms = Compose(
         [
             LoadImaged(keys=["image", "label"]),
             AddChanneld(keys=["image", "label"]),
             Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
             Orientationd(keys=["image", "label"], axcodes="LPS"),
-            ScaleIntensityRanged(
-                keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-                b_min=0.0, b_max=1.0, clip=True,
-            ),
+            scaleIntensity,
+            #ScaleIntensityRanged(
+            #    keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
+            #    b_min=0.0, b_max=1.0, clip=True,
+            #),
             # ScaleIntensityRangePercentilesd(
             #     keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
             #     b_min=0.0, b_max=1.0, clip=True,
@@ -115,7 +132,7 @@ def run(param, train_files, val_files):
     # Training
     #--------------------------------------------------------------------------------
     
-    (model_unet, post_pred, post_label) = setupModel()
+    (model_unet, post_pred, post_label) = setupModel(param)
     
     # standard PyTorch program style: create UNet, DiceLoss and Adam optimizer
     device = torch.device(param.training_device_name)
@@ -172,7 +189,6 @@ def run(param, train_files, val_files):
                     sw_batch_size = 4
                     val_outputs = sliding_window_inference(
                         val_inputs, roi_size, sw_batch_size, model)
-                    
                     val_outputs = [post_pred(i) for i in decollate_batch(val_outputs)]
                     val_labels = [post_label(i) for i in decollate_batch(val_labels)]
                     dice_metric(y_pred=val_outputs, y=val_labels)
