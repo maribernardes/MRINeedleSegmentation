@@ -89,6 +89,15 @@ class TrainingParam(Param):
         self.max_epochs = int(self.config.get('training', 'max_epochs'))
         self.training_device_name = self.config.get('training', 'training_device_name')
 
+class TransferParam(TrainingParam):
+    def __init__(self, filename='config.ini'):
+        super().__init__(filename)
+
+    def readParameters(self):
+        super().readParameters()
+        self.tl_model_file = self.config.get('transfer', 'tl_model_file')
+        self.tl_data_dir = self.config.get('transfer', 'tl_data_dir')
+    
         
 class InferenceParam(Param):
     
@@ -188,11 +197,11 @@ def loadInferenceTransforms(param):
 # Generate a file list
 #--------------------------------------------------------------------------------
 
-def generateLabeledFileList(param, prefix):
+def generateLabeledFileList(srcdir, prefix):
     
-    print('Reading labeled images from: ' + param.data_dir)
-    images = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_images", "*.nii.gz")))
-    labels = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_labels", "*.nii.gz")))
+    print('Reading labeled images from: ' + srcdir)
+    images = sorted(glob.glob(os.path.join(srcdir, prefix + "_images", "*.nii.gz")))
+    labels = sorted(glob.glob(os.path.join(srcdir, prefix + "_labels", "*.nii.gz")))
     
     data_dicts = [
         {"image": image_name, "label": label_name}

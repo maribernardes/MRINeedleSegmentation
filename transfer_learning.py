@@ -23,6 +23,9 @@ from monai.inferers import sliding_window_inference
 from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
 from monai.config import print_config
 from monai.apps import download_and_extract
+from monai.networks.utils import copy_model_state
+from monai.optimizers import generate_param_groups
+
 import torch
 import matplotlib.pyplot as plt
 import tempfile
@@ -137,6 +140,27 @@ def run(param, train_files, val_files):
     # standard PyTorch program style: create UNet, DiceLoss and Adam optimizer
     device = torch.device(param.training_device_name)
     model = model_unet.to(device)
+
+    model.load_state_dict(torch.load(os.path.join(param.root_dir, param.model_file), map_location=device))
+
+    #pretrained_dict, updated_keys, unchanged_keys = copy_model_state(model, model_unet, exclude_vars="model.0.conv.unit0")
+    #model.load_state_dict(pretrained_dict)
+
+    #print([x[0] for x in model.named_parameters()])
+    #print(unchanged_keys)
+
+    ## stop gradients for the pretrained weights
+    #for x in model.named_parameters():
+    #    if x[0] in updated_keys:
+    #        x[1].requires_grad = False
+    #params = generate_param_groups(
+    #    network=model,
+    #    layer_matches=[lambda x: x[0] in updated_keys],
+    #    match_types=["filter"],
+    #    lr_values=[1e-4],
+    #    include_others=False
+    # )
+    #optimizer = torch.optim.Adam(params, 1e-4)
     
     # Loss function & optimizer
     loss_function = DiceLoss(to_onehot_y=True, softmax=True)
@@ -203,7 +227,7 @@ def run(param, train_files, val_files):
                     best_metric = metric
                     best_metric_epoch = epoch + 1
                     torch.save(model.state_dict(), os.path.join(
-                        param.root_dir, param.model_file))
+                        param.root_dir, param.tl_model_file))
                     print("saved new best metric model")
                 print(
                     f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
@@ -243,22 +267,19 @@ def run(param, train_files, val_files):
 def main(argv):
     
   try:
-    parser = argparse.ArgumentParser(description="Apply a saved DL model for segmentation.")
+    parser = argparse.ArgumentParser(description="Transfer a saved model to a new domain.")
     parser.add_argument('cfg', metavar='CONFIG_FILE', type=str, nargs=1,
                         help='Configuration file')
-    #parser.add_argument('input', metavar='INPUT_PATH', type=str, nargs=1,
-    #help='A file or a folder that contains images.')
-            
     args = parser.parse_args(argv)
 
     config_file = args.cfg[0]
-    #input_path = args.input[0]
 
     print('Loading parameters from: ' + config_file)
-    param = TrainingParam(config_file)
+    #param = TrainingParam(config_file)
+    param = TransferParam(config_file)    
 
-    train_files = generateLabeledFileList(param.data_dir, 'train')
-    val_files = generateLabeledFileList(param.data_dir, 'val')
+    train_files = generateLabeledFileList(param.tl_data_dir, 'train')
+    val_files = generateLabeledFileList(param.tl_data_dir, 'val')
     
     n_train = len(train_files)
     n_val = len(val_files)
@@ -276,3 +297,6 @@ def main(argv):
 if __name__ == "__main__":
   main(sys.argv[1:])
     
+
+
+
