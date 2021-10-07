@@ -1,5 +1,5 @@
-# IceBallSegmentation
-AI-based Iceball segmentation for MRI-guided cryoablation
+# MRISegmentation
+AI-based segmentation for MRI-guided cryoablation
 
 ## Prerequisite
  - Python 3.8 or later
