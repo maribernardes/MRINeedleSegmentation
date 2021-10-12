@@ -14,7 +14,6 @@ from monai.transforms import (
     ToTensord,
     Activationsd,
     EnsureTyped,
-    Invertd,
     AsDiscreted,
     SaveImaged,
 )
@@ -45,10 +44,10 @@ def run(param, output_path, image_type, val_files):
 
     device = torch.device(param.inference_device_name)
 
-    val_transforms =  loadInferenceTransforms(param)
+    (pre_transforms, post_transforms) =  loadInferenceTransforms(param, output_path)
 
-    val_ds = CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=4)
-    #val_ds = Dataset(data=val_files, transform=val_transforms)
+    val_ds = CacheDataset(data=val_files, transform=pre_transforms, cache_rate=1.0, num_workers=4)
+    #val_ds = Dataset(data=val_files, transform=pre_transforms)
 
     val_loader = DataLoader(val_ds, batch_size=1, num_workers=4)
  
@@ -65,39 +64,6 @@ def run(param, output_path, image_type, val_files):
     
     model.load_state_dict(torch.load(os.path.join(param.root_dir, param.model_file), map_location=device))
 
-
-
-    #--------------------------------------------------------------------------------
-    # Transforms
-    #--------------------------------------------------------------------------------
-
-    pre_transforms = val_transforms
-    
-    # define post transforms
-    post_transforms = Compose([
-        EnsureTyped(keys="pred"),
-        Invertd(
-            keys="pred",  # invert the `pred` data field, also support multiple fields
-            transform=pre_transforms,
-            orig_keys="image",  # get the previously applied pre_transforms information on the `img` data field,
-                              # then invert `pred` based on this information. we can use same info
-                              # for multiple fields, also support different orig_keys for different fields
-            meta_keys="pred_meta_dict",  # key field to save inverted meta data, every item maps to `keys`
-            orig_meta_keys="image_meta_dict",  # get the meta data from `img_meta_dict` field when inverting,
-                                             # for example, may need the `affine` to invert `Spacingd` transform,
-                                             # multiple fields can use the same meta data to invert
-            meta_key_postfix="meta_dict",  # if `meta_keys=None`, use "{keys}_{meta_key_postfix}" as the meta key,
-                                           # if `orig_meta_keys=None`, use "{orig_keys}_{meta_key_postfix}",
-                                           # otherwise, no need this arg during inverting
-            nearest_interp=False,  # don't change the interpolation mode to "nearest" when inverting transforms
-                                   # to ensure a smooth output, then execute `AsDiscreted` transform
-            to_tensor=True,  # convert to PyTorch Tensor after inverting
-        ),
-        Activationsd(keys="pred", sigmoid=True),
-        #AsDiscreted(keys="pred", threshold_values=True),
-        AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
-        SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
-    ])
 
     
     #--------------------------------------------------------------------------------
