@@ -8,18 +8,21 @@ from monai.transforms import (
     CropForegroundd,
     LoadImaged,
     Orientationd,
-#    RandCropByPosNegLabeld,
-#    RandAffined,
+    RandCropByPosNegLabeld,
+    RandAffined,
+    RandFlipd,    
     ScaleIntensityRanged,
     ScaleIntensityRangePercentilesd,    
     Spacingd,
     ToTensord,
     EnsureTyped,
 )
+
 from monai.utils import first, set_determinism
 from monai.networks.nets import UNet
 from monai.networks.layers import Norm
 
+import numpy as np
 import glob
 import os
 import shutil
@@ -86,8 +89,12 @@ class TrainingParam(Param):
 
         self.use_tensorboard = int(self.config.get('training', 'use_tensorboard'))
         self.use_matplotlib = int(self.config.get('training', 'use_matplotlib'))
+        self.training_name = self.config.get('training', 'training_name')
         self.max_epochs = int(self.config.get('training', 'max_epochs'))
         self.training_device_name = self.config.get('training', 'training_device_name')
+        self.training_rand_rot = int(self.config.get('training', 'random_rot'))
+        self.training_rand_flip = int(self.config.get('training', 'random_flip'))
+        
 
 class TransferParam(TrainingParam):
     def __init__(self, filename='config.ini'):
@@ -113,6 +120,81 @@ class InferenceParam(Param):
 #--------------------------------------------------------------------------------
 # Load Transforms
 #--------------------------------------------------------------------------------
+
+def loadTrainingTransforms(param):
+
+    scaleIntensity = None
+    if param.pixel_intensity_scaling == 'absolute':
+        print('Intensity scaling by max/min')
+        scaleIntensity = ScaleIntensityRanged(
+            keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
+            b_min=0.0, b_max=1.0, clip=True,
+        )
+    elif param.pixel_intensity_scaling == 'percentile':
+        print('Intensity scaling by percentile')
+        scaleIntensity = ScaleIntensityRangePercentilesd(
+            keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
+            b_min=0.0, b_max=1.0, clip=True,
+            )
+    else: # 'normalize
+        scaleIntensity = NormalizeIntensityd(keys=["image"])
+
+    transform_array = [
+        LoadImaged(keys=["image", "label"]),
+        AddChanneld(keys=["image", "label"]),
+        Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
+        Orientationd(keys=["image", "label"], axcodes="LPS"),
+        scaleIntensity,
+        #ScaleIntensityRanged(
+        #    keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
+        #    b_min=0.0, b_max=1.0, clip=True,
+        #),
+        # ScaleIntensityRangePercentilesd(
+        #     keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
+        #     b_min=0.0, b_max=1.0, clip=True,
+        # ),
+        CropForegroundd(keys=["image", "label"], source_key="image"),
+        RandCropByPosNegLabeld(
+            keys=["image", "label"],
+            label_key="label",
+            #spatial_size=(96,96,96),
+            #spatial_size=(32, 32, 16),
+            spatial_size=param.window_size,
+            pos=1,
+            neg=1,
+            num_samples=4,
+            image_key="image",
+            image_threshold=0,
+        ),
+        # user can also add other random transforms
+        ToTensord(keys=["image", "label"]),
+    ]
+
+    if param.training_rand_rot == 1:
+        transform_array.append(
+            RandAffined(
+                keys=['image', 'label'],
+                mode=('bilinear', 'nearest'),
+                prob=1.0,
+                spatial_size=param.window_size,
+                rotate_range=(0, 0, np.pi/15),
+                scale_range=(0.1, 0.1, 0.1))
+        )
+        
+    if param.training_rand_flip == 1:
+        transform_array.append(
+            RandFlipd(
+                keys=['image', 'label'],
+                prob=0.5,
+                spatial_axis=1 # TODO: Make sure that the axis corresponds to L-R
+            )
+        )
+    
+    train_transforms = Compose(transform_array)
+
+    return train_transforms
+
+
 
 def loadValidationTransforms(param):
     

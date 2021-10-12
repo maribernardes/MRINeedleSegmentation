@@ -64,64 +64,8 @@ def run(param, train_files, val_files):
     #--------------------------------------------------------------------------------
 
     val_transforms = loadValidationTransforms(param)
-    scaleIntensity = None
-    if param.pixel_intensity_scaling == 'absolute':
-        print('Intensity scaling by max/min')
-        scaleIntensity = ScaleIntensityRanged(
-            keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-            b_min=0.0, b_max=1.0, clip=True,
-        )
-    elif param.pixel_intensity_scaling == 'percentile':
-        print('Intensity scaling by percentile')
-        scaleIntensity = ScaleIntensityRangePercentilesd(
-            keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
-            b_min=0.0, b_max=1.0, clip=True,
-            )
-    else: # 'normalize
-        scaleIntensity = NormalizeIntensityd(keys=["image"])
-        
-    train_transforms = Compose(
-        [
-            LoadImaged(keys=["image", "label"]),
-            AddChanneld(keys=["image", "label"]),
-            Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
-            Orientationd(keys=["image", "label"], axcodes="LPS"),
-            scaleIntensity,
-            #ScaleIntensityRanged(
-            #    keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-            #    b_min=0.0, b_max=1.0, clip=True,
-            #),
-            # ScaleIntensityRangePercentilesd(
-            #     keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
-            #     b_min=0.0, b_max=1.0, clip=True,
-            # ),
-            CropForegroundd(keys=["image", "label"], source_key="image"),
-            RandCropByPosNegLabeld(
-                keys=["image", "label"],
-                label_key="label",
-                #spatial_size=(96,96,96),
-                #spatial_size=(32, 32, 16),
-                spatial_size=param.window_size,
-                pos=1,
-                neg=1,
-                num_samples=4,
-                image_key="image",
-                image_threshold=0,
-            ),
-            # user can also add other random transforms
-            #RandAffined(
-            #    keys=['image', 'label'],
-            #    mode=('bilinear', 'nearest'),
-            #    prob=1.0,
-            #    #spatial_size=(96, 96, 96),
-            #    spatial_size=(64, 64, 16),
-            #    rotate_range=(0, 0, np.pi/15),
-            #    scale_range=(0.1, 0.1, 0.1)),
-            ToTensord(keys=["image", "label"]),
-        ]
-    )
-    
-    
+    train_transforms = loadTrainingTransforms(param)    
+
     val_ds = CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=4)
     val_loader = DataLoader(val_ds, batch_size=1, num_workers=4)
 
