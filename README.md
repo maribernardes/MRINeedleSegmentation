@@ -38,6 +38,14 @@ In the following instruction, we assume that the workspace is structured as foll
              + Validation label 1.nii.gz
              + Validation label 2.nii.gz
                  ...
+         + test_images
+             + Test image 1.nii.gz
+             + Test image 2.nii.gz
+                 ...
+         + test_labels
+             + Test label 1.nii.gz
+             + Test label 2.nii.gz
+                 ...
 ~~~~
 
 ### Getting the code from GitHub
@@ -77,6 +85,14 @@ Before running the script, store the files as follows:
              + Validation label 1.nii.gz
              + Validation label 2.nii.gz
                  ...
+         + test_images
+             + Test image 1.nii.gz
+             + Test image 2.nii.gz
+                 ...
+         + tset_labels
+             + Test label 1.nii.gz
+             + Test label 2.nii.gz
+                 ...
 ~~~~
 
 Then, run convert.py. 
@@ -85,7 +101,7 @@ $ cd <working directory>
 $ IceBallSegmentation/convert_dataset_to_nifty.sh
 ~~~~
 
-If the script will output the images in the following directory structure:
+The script will output the images in the following directory structure:
 ~~~~
  + <working directory> 
      + sorted_nii
@@ -104,6 +120,14 @@ If the script will output the images in the following directory structure:
          + val_labels
              + Validation label 1.nii.gz
              + Validation label 2.nii.gz
+                 ...
+         + test_images
+             + Test image 1.nii.gz
+             + Test image 2.nii.gz
+                 ...
+         + test_labels
+             + Test label 1.nii.gz
+             + Test label 2.nii.gz
                  ...
 ~~~~
 

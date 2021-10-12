@@ -96,6 +96,17 @@ class TrainingParam(Param):
         self.training_rand_flip = int(self.config.get('training', 'random_flip'))
         
 
+class TestParam(Param):
+
+    def __init__(self, filename='config.ini'):
+        super().__init__(filename)
+
+    def readParameters(self):
+        super().readParameters()
+
+        self.test_device_name = self.config.get('test', 'test_device_name')
+
+        
 class TransferParam(TrainingParam):
     def __init__(self, filename='config.ini'):
         super().__init__(filename)

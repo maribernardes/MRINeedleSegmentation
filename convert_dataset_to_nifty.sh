@@ -12,4 +12,6 @@ ${PYTHON} ${SCRIPT_DIR}/to_nifty.py  ${input_dir}/train_images  ${output_dir}/tr
 ${PYTHON} ${SCRIPT_DIR}/to_nifty.py  ${input_dir}/train_labels  ${output_dir}/train_labels
 ${PYTHON} ${SCRIPT_DIR}/to_nifty.py  ${input_dir}/val_images    ${output_dir}/val_images
 ${PYTHON} ${SCRIPT_DIR}/to_nifty.py  ${input_dir}/val_labels    ${output_dir}/val_labels
+${PYTHON} ${SCRIPT_DIR}/to_nifty.py  ${input_dir}/test_images    ${output_dir}/test_images
+${PYTHON} ${SCRIPT_DIR}/to_nifty.py  ${input_dir}/test_labels    ${output_dir}/test_labels
 
