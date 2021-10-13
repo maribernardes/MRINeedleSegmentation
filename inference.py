@@ -1,22 +1,6 @@
 #! /usr/bin/python
 
 from monai.utils import first, set_determinism
-from monai.transforms import (
-    AsDiscrete,
-    AddChanneld,
-    Compose,
-    CropForegroundd,
-    LoadImaged,
-    Orientationd,
-    RandCropByPosNegLabeld,
-    ScaleIntensityRanged,
-    Spacingd,
-    ToTensord,
-    Activationsd,
-    EnsureTyped,
-    AsDiscreted,
-    SaveImaged,
-)
 from monai.handlers.utils import from_engine
 from monai.metrics import compute_meandice, DiceMetric
 from monai.inferers import sliding_window_inference

@@ -3,24 +3,27 @@
 import torch
 from configparser import ConfigParser
 from monai.transforms import (
+    Activationsd,
     AsDiscrete,
     AsDiscreted,
     AddChanneld,
     Compose,
     CropForegroundd,
+    EnsureTyped,
+    Invertd,
     LoadImaged,
     Orientationd,
-    RandCropByPosNegLabeld,
     RandAffined,
-    RandFlipd,    
+    RandCropByPosNegLabeld,
+    RandAdjustContrastd,
+    RandFlipd,
+    RandScaleIntensityd,
+    RandStdShiftIntensityd,
+    SaveImaged,
     ScaleIntensityRanged,
     ScaleIntensityRangePercentilesd,    
     Spacingd,
-    Invertd,
     ToTensord,
-    EnsureTyped,
-    Activationsd,
-    SaveImaged,
 )
 
 from monai.utils import first, set_determinism
@@ -99,7 +102,9 @@ class TrainingParam(Param):
         self.training_device_name = self.config.get('training', 'training_device_name')
         self.training_rand_rot = int(self.config.get('training', 'random_rot'))
         self.training_rand_flip = int(self.config.get('training', 'random_flip'))
-        
+        self.training_rand_shift_intensity = int(self.config.get('training', 'random_shift_intensity'))
+        self.training_rand_contrast = int(self.config.get('training', 'random_contrast'))
+        self.training_rand_scale = int(self.config.get('training', 'random_scale'))
 
 class TestParam(Param):
 
@@ -161,20 +166,10 @@ def loadTrainingTransforms(param):
         Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
         Orientationd(keys=["image", "label"], axcodes="LPS"),
         scaleIntensity,
-        #ScaleIntensityRanged(
-        #    keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-        #    b_min=0.0, b_max=1.0, clip=True,
-        #),
-        # ScaleIntensityRangePercentilesd(
-        #     keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
-        #     b_min=0.0, b_max=1.0, clip=True,
-        # ),
         CropForegroundd(keys=["image", "label"], source_key="image"),
         RandCropByPosNegLabeld(
             keys=["image", "label"],
             label_key="label",
-            #spatial_size=(96,96,96),
-            #spatial_size=(32, 32, 16),
             spatial_size=param.window_size,
             pos=1,
             neg=1,
@@ -205,6 +200,35 @@ def loadTrainingTransforms(param):
                 spatial_axis=0 # TODO: Make sure that the axis corresponds to L-R
             )
         )
+
+    if param.training_rand_shift_intensity == 1:
+        transform_array.append(
+            RandStdShiftIntensityd(
+                keys=['image', 'label'],
+                #prob=1.0,
+                prob=0.5,
+                factors=0.2
+            )
+        )
+        
+    if param.training_rand_contrast ==1:
+        transform_array.append(
+            RandAdjustContrastd(
+                keys=['image', 'label'],
+                prob=1.0,
+                gamma=(0.5,1.5)
+            )
+        )
+
+    if param.training_rand_scale == 1:
+        transform_array.append(
+            RandScaleIntensityd(
+                keys=['image', 'label'],
+                prob=0.5,
+                factors=0.2
+            )
+        )
+        
     
     train_transforms = Compose(transform_array)
 
@@ -236,14 +260,6 @@ def loadValidationTransforms(param):
             Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
             Orientationd(keys=["image", "label"], axcodes="LPS"),
             scaleIntensity,
-            #ScaleIntensityRanged(
-            #    keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-            #    b_min=0.0, b_max=1.0, clip=True,
-            #),
-            # ScaleIntensityRangePercentilesd(
-            #     keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
-            #     b_min=0.0, b_max=1.0, clip=True,
-            # ),
             CropForegroundd(keys=["image", "label"], source_key="image"),
             ToTensord(keys=["image", "label"]),
         ]
@@ -275,14 +291,6 @@ def loadInferenceTransforms(param, output_path):
             Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")),
             Orientationd(keys=["image"], axcodes="LPS"),
             scaleIntensity,
-            #ScaleIntensityRanged(
-            #    keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-            #    b_min=0.0, b_max=1.0, clip=True,
-            #),
-            # ScaleIntensityRangePercentilesd(
-            #     keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
-            #     b_min=0.0, b_max=1.0, clip=True,
-            # ),
             CropForegroundd(keys=["image"], source_key="image"),
             #ToTensord(keys=["image"]),
             EnsureTyped(keys=["image"]),

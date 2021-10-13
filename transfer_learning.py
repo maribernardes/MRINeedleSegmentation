@@ -1,21 +1,6 @@
 #! /usr/bin/python
 
 from monai.utils import first, set_determinism
-from monai.transforms import (
-    AsDiscrete,
-    AddChanneld,
-    Compose,
-    CropForegroundd,
-    LoadImaged,
-    Orientationd,
-    RandCropByPosNegLabeld,
-    RandAffined,
-    ScaleIntensityRanged,
-    ScaleIntensityRangePercentilesd,
-    NormalizeIntensityd,
-    Spacingd,
-    ToTensord,
-)
 from monai.metrics import compute_meandice
 from monai.metrics import DiceMetric
 from monai.losses import DiceLoss
