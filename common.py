@@ -49,8 +49,12 @@ class Param():
         self.config.read(filename)
         self.readParameters()
 
-    def getvector(self, config, section, key):
-        value = config.get(section, key)
+    def getvector(self, config, section, key, default=None):
+        value = None
+        if default:
+            value = config.get(section, key, fallback=default)
+        else:
+            value = config.get(section, key)
         if value:
             value = value.split(',')
             value = [float(s) for s in value]
@@ -98,13 +102,16 @@ class TrainingParam(Param):
         self.use_tensorboard = int(self.config.get('training', 'use_tensorboard'))
         self.use_matplotlib = int(self.config.get('training', 'use_matplotlib'))
         self.training_name = self.config.get('training', 'training_name')
-        self.max_epochs = int(self.config.get('training', 'max_epochs'))
+        self.max_epochs = int(self.config.get('training', 'max_epochs', fallback='200'))
         self.training_device_name = self.config.get('training', 'training_device_name')
-        self.training_rand_rot = int(self.config.get('training', 'random_rot'))
-        self.training_rand_flip = int(self.config.get('training', 'random_flip'))
-        self.training_rand_shift_intensity = int(self.config.get('training', 'random_shift_intensity'))
-        self.training_rand_contrast = int(self.config.get('training', 'random_contrast'))
-        self.training_rand_scale = int(self.config.get('training', 'random_scale'))
+        self.training_rand_rot = int(self.config.get('training', 'random_rot', fallback='0'))
+        if self.training_rand_rot ==1:
+            self.training_rand_rot_angle = tuple(self.getvector(self.config, 'training', 'random_rot_angle', '0.0,0.0,0.2617993877991494'))
+            self.training_rand_rot_scale = tuple(self.getvector(self.config, 'training', 'random_rot_scale', '0.1,0.1,0.1'))
+        self.training_rand_flip = int(self.config.get('training', 'random_flip', fallback='0'))
+        self.training_rand_shift_intensity = float(self.config.get('training', 'random_shift_intensity', fallback='0.0'))
+        self.training_rand_contrast = int(self.config.get('training', 'random_contrast', fallback='0'))
+        self.training_rand_scale = float(self.config.get('training', 'random_scale', fallback='0.0'))
 
 class TestParam(Param):
 
@@ -124,6 +131,7 @@ class TransferParam(TrainingParam):
     def readParameters(self):
         super().readParameters()
         self.tl_model_file = self.config.get('transfer', 'tl_model_file')
+        self.tl_name = self.config.get('transfer', 'tl_name', fallback='transfer_learning_1')
         self.tl_data_dir = self.config.get('transfer', 'tl_data_dir')
     
         
@@ -181,6 +189,7 @@ def loadTrainingTransforms(param):
         ToTensord(keys=["image", "label"]),
     ]
 
+    
     if param.training_rand_rot == 1:
         transform_array.append(
             RandAffined(
@@ -188,8 +197,8 @@ def loadTrainingTransforms(param):
                 mode=('bilinear', 'nearest'),
                 prob=1.0,
                 spatial_size=param.window_size,
-                rotate_range=(0, 0, np.pi/12.0),
-                scale_range=(0.1, 0.1, 0.1))
+                rotate_range=param.training_rand_rot_angle,
+                scale_range=param.training_rand_rot_scale)
         )
         
     if param.training_rand_flip == 1:
@@ -201,31 +210,30 @@ def loadTrainingTransforms(param):
             )
         )
 
-    if param.training_rand_shift_intensity == 1:
+    if param.training_rand_shift_intensity > 0.0:
         transform_array.append(
             RandStdShiftIntensityd(
-                keys=['image', 'label'],
-                #prob=1.0,
-                prob=0.5,
-                factors=0.2
+                keys=['image'],
+                prob=1.0,
+                factors=param.training_rand_shift_intensity
             )
         )
         
-    if param.training_rand_contrast ==1:
+    if param.training_rand_contrast == 1:
         transform_array.append(
             RandAdjustContrastd(
-                keys=['image', 'label'],
+                keys=['image'],
                 prob=1.0,
                 gamma=(0.5,1.5)
             )
         )
 
-    if param.training_rand_scale == 1:
+    if param.training_rand_scale > 0.0:
         transform_array.append(
             RandScaleIntensityd(
-                keys=['image', 'label'],
-                prob=0.5,
-                factors=0.2
+                keys=['image'],
+                prob=1.0,
+                factors=param.training_rand_scale
             )
         )
         

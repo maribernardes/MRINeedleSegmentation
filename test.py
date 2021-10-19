@@ -3,6 +3,9 @@
 from monai.utils import first, set_determinism
 from monai.metrics import compute_meandice
 from monai.metrics import DiceMetric
+from monai.metrics import HausdorffDistanceMetric
+from monai.metrics import SurfaceDistanceMetric
+
 from monai.losses import DiceLoss
 from monai.inferers import sliding_window_inference
 from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
@@ -23,7 +26,7 @@ import numpy as np
 from common import *
 
 
-def run(param, test_files):
+def run(param, test_files, model_file):
     
     #--------------------------------------------------------------------------------
     # Test datasets
@@ -46,15 +49,16 @@ def run(param, test_files):
     device = torch.device(param.test_device_name)    
     model = model_unet.to(device)
     
-    model.load_state_dict(torch.load(os.path.join(param.root_dir, param.model_file), map_location=device))
+    model.load_state_dict(torch.load(os.path.join(param.root_dir, model_file), map_location=device))
 
 
     #--------------------------------------------------------------------------------
     # Test
     #--------------------------------------------------------------------------------
     
-    # Loss function & optimizer
     dice_metric = DiceMetric(include_background=False, reduction="mean")
+    hd_metric = HausdorffDistanceMetric(include_background=False, reduction="mean")
+    sd_metric = SurfaceDistanceMetric(include_background=False, reduction="mean")
     
     model.eval()
 
@@ -77,11 +81,38 @@ def run(param, test_files):
             test_outputs = [post_pred(i) for i in decollate_batch(test_outputs)]
             test_labels = [post_label(i) for i in decollate_batch(test_labels)]
             dice_metric(y_pred=test_outputs, y=test_labels)
-            
+            hd_metric(y_pred=test_outputs, y=test_labels)
+            sd_metric(y_pred=test_outputs, y=test_labels)
             
         # aggregate the final mean dice result
         metric = dice_metric.aggregate().item()
         print("Mean Dice : " + str(metric))
+        
+        dice_buf = dice_metric.get_buffer()
+        dice_m = torch.mean(dice_buf,0)
+        dice_sd = torch.std(dice_buf,0)
+
+        hd_buf = hd_metric.get_buffer()
+        hd_m = torch.mean(hd_buf,0)
+        hd_sd = torch.std(hd_buf,0)
+
+        sd_buf = sd_metric.get_buffer()
+        sd_m = torch.mean(sd_buf,0)
+        sd_sd = torch.std(sd_buf,0)
+        
+        n = len(dice_m)
+        
+        print ("===== Dice =====")
+        for i in range(n):
+            print("Structure %d : %.3f +/- %.3f" %(i, dice_m[i].item(), dice_sd[i].item()))
+            
+        print ("===== Hausdorff Distance  =====")
+        for i in range(n):
+            print("Structure %d : %.3f +/- %.3f" %(i, hd_m[i].item(), hd_sd[i].item()))
+        
+        print ("===== Surface Distance  =====")
+        for i in range(n):
+            print("Structure %d : %.3f +/- %.3f" %(i, sd_m[i].item(), sd_sd[i].item()))
         
         # reset the status for next validation round
         dice_metric.reset()
@@ -93,6 +124,10 @@ def main(argv):
     parser = argparse.ArgumentParser(description="Apply a saved DL model for segmentation.")
     parser.add_argument('cfg', metavar='CONFIG_FILE', type=str, nargs=1,
                         help='Configuration file')
+    parser.add_argument('-T', dest='tl_data', action='store_const',
+                        const=True, default=False,
+                        help='Test a result of transfer learning.')
+
     #parser.add_argument('input', metavar='INPUT_PATH', type=str, nargs=1,
     #help='A file or a folder that contains images.')
             
@@ -103,13 +138,21 @@ def main(argv):
 
     print('Loading parameters from: ' + config_file)
     param = TestParam(config_file)
-
-    test_files = generateLabeledFileList(param.data_dir, 'test')
+    
+    test_files = None
+    model_file = None
+    if args.tl_data == True:
+        param_tl = TransferParam(config_file)
+        test_files = generateLabeledFileList(param_tl.tl_data_dir, 'test')
+        model_file = param_tl.tl_model_file
+    else:
+        test_files = generateLabeledFileList(param.data_dir, 'test')
+        model_file = param.model_file
     
     n_test = len(test_files)
     print('Test data size: ' + str(n_test))
 
-    run(param, test_files)
+    run(param, test_files, model_file)
     
 
   except Exception as e:

@@ -35,7 +35,7 @@ def run(param, train_files, val_files):
     # Tensorboard
     if param.use_tensorboard == 1:
         from torch.utils.tensorboard import SummaryWriter
-        writer = SummaryWriter('runs/segmentation_experiment_1')
+        writer = SummaryWriter('runs/' +  param.tl_name)
     
         
     torch.multiprocessing.set_sharing_strategy('file_system')

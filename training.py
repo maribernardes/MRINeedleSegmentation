@@ -175,6 +175,9 @@ def main(argv):
     parser = argparse.ArgumentParser(description="Apply a saved DL model for segmentation.")
     parser.add_argument('cfg', metavar='CONFIG_FILE', type=str, nargs=1,
                         help='Configuration file')
+    parser.add_argument('-t', dest='tl_data', default='folder',
+                        help="Image type ('file': a file; 'folder': a folder containing multiple images.)")
+    
     #parser.add_argument('input', metavar='INPUT_PATH', type=str, nargs=1,
     #help='A file or a folder that contains images.')
             

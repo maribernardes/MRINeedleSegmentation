@@ -24,7 +24,7 @@ from common import *
 
 
 
-def run(param, output_path, image_type, val_files):
+def run(param, output_path, image_type, val_files, model_file):
 
     device = torch.device(param.inference_device_name)
 
@@ -46,7 +46,7 @@ def run(param, output_path, image_type, val_files):
     
     dice_metric = DiceMetric(include_background=False, reduction="mean")
     
-    model.load_state_dict(torch.load(os.path.join(param.root_dir, param.model_file), map_location=device))
+    model.load_state_dict(torch.load(os.path.join(param.root_dir, model_file), map_location=device))
 
 
     
@@ -86,6 +86,10 @@ def main(argv):
                         help='A folder to store the output file(s).')
     parser.add_argument('-t', dest='type', default='folder',
                         help="Image type ('file': a file; 'folder': a folder containing multiple images.)")
+    parser.add_argument('-T', dest='tl_data', action='store_const',
+                        const=True, default=False,
+                        help='Use a result of transfer learning.')
+
             
     args = parser.parse_args(argv)
 
@@ -102,8 +106,15 @@ def main(argv):
     files = generateFileList(input_path)
     n_files = len(files)
     print('# of images: ' + str(n_files))
+    
+    model_file = None
+    if args.tl_data:
+        param_tl = TransferParam(config_file)
+        model_file = param_tl.tl_model_file
+    else:
+        model_file = param.model_file
 
-    run(param, output_path, image_type, files)
+    run(param, output_path, image_type, files, model_file)
 
 
   except Exception as e:
