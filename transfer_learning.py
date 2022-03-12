@@ -4,6 +4,7 @@ from monai.utils import first, set_determinism
 from monai.metrics import compute_meandice
 from monai.metrics import DiceMetric
 from monai.losses import DiceLoss
+#from monai.losses import DiceFocalLoss
 from monai.inferers import sliding_window_inference
 from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
 from monai.config import print_config
@@ -74,10 +75,10 @@ def run(param, train_files, val_files):
 
     #pretrained_dict, updated_keys, unchanged_keys = copy_model_state(model, model_unet, exclude_vars="model.0.conv.unit0")
     #model.load_state_dict(pretrained_dict)
-
+    #
     #print([x[0] for x in model.named_parameters()])
     #print(unchanged_keys)
-
+    #
     ## stop gradients for the pretrained weights
     #for x in model.named_parameters():
     #    if x[0] in updated_keys:
@@ -93,7 +94,9 @@ def run(param, train_files, val_files):
     
     # Loss function & optimizer
     loss_function = DiceLoss(to_onehot_y=True, softmax=True)
-    optimizer = torch.optim.Adam(model.parameters(), 1e-4)
+    #loss_function = DiceFocalLoss(to_onehot_y=True, softmax=True)
+    #optimizer = torch.optim.Adam(model.parameters(), 1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), 1e-5)
     dice_metric = DiceMetric(include_background=False, reduction="mean")
     
     val_interval = 2

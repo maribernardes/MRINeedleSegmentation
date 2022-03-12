@@ -48,6 +48,16 @@ In the following instruction, we assume that the workspace is structured as foll
                  ...
 ~~~~
 
+### Shuffling image data
+
+`shuffle.py` can shuffle images and copy them to the designated data folders (see above). To run the script:
+
+~~~~
+$ shuffle.py -t 10 -v 6 -s 8 /dataset_intra_planning/cryo-t2-nii/data_pool /dataset_intra_planning/cryo-t2-nii/
+~~~~
+Options `-t 10`, `-v 6`, and `-s 8' can be omitted. To see the default values, run the command with `-h` option.
+
+
 ### Getting the code from GitHub
 
 The script can be obtained from the GitHub repository: 
