@@ -6,12 +6,14 @@ from monai.transforms import (
     Activationsd,
     AsDiscrete,
     AsDiscreted,
-    AddChanneld,
+    # AddChanneld, # Mariana: deprecated. Replace with EnsureChannelFirst
     Compose,
     CropForegroundd,
+    EnsureChannelFirstd,
     EnsureTyped,
     Invertd,
     LoadImaged,
+    NormalizeIntensityd,
     Orientationd,
     RandAffined,
     RandCropByPosNegLabeld,
@@ -169,8 +171,15 @@ def loadTrainingTransforms(param):
         scaleIntensity = NormalizeIntensityd(keys=["image"])
 
     transform_array = [
+        # # Mag/Phase
+        # LoadImaged(keys=["image_m", "image_p", "label"]),
+        # EnsureChannelFirstd(keys=["image_m", "image_p", "label"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
+        # ConcatItemsd(keys=["image_m", "image_p"], name="image"), # Mariana: concatenate mag and phase in a two-channel array
+        
+        # Phase only
         LoadImaged(keys=["image", "label"]),
-        AddChanneld(keys=["image", "label"]),
+        EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
+        
         Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
         Orientationd(keys=["image", "label"], axcodes="LPS"),
         scaleIntensity,
@@ -263,8 +272,15 @@ def loadValidationTransforms(param):
         
     val_transforms = Compose(
         [
+            # # Mag/Phase
+            # LoadImaged(keys=["image_m", "image_p", "label"]),
+            # EnsureChannelFirstd(keys=["image_m", "image_p","label"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead  
+            # ConcatItemsd(keys=["image_m", "image_p"], name="image"), # Mariana: concatenate mag and phase in a two-channel array
+            
+            # Phase only
             LoadImaged(keys=["image", "label"]),
-            AddChanneld(keys=["image", "label"]),
+            EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead  
+ 
             Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
             Orientationd(keys=["image", "label"], axcodes="LPS"),
             scaleIntensity,
@@ -294,8 +310,15 @@ def loadInferenceTransforms(param, output_path):
         
     pre_transforms = Compose(
         [
+            # # Mag/Phase
+            # LoadImaged(keys=["image_m", "image_p"]),
+            # EnsureChannelFirstd(keys=["image_m", "image_p"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
+            # ConcatItemsd(keys=["image_m", "image_p"], name="image"), # Mariana: concatenate mag and phase in a two-channel array
+
+            # Phase only
             LoadImaged(keys=["image"]),
-            AddChanneld(keys=["image"]),
+            EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
+
             Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")),
             Orientationd(keys=["image"], axcodes="LPS"),
             scaleIntensity,
@@ -344,12 +367,20 @@ def loadInferenceTransforms(param, output_path):
 def generateLabeledFileList(srcdir, prefix):
     
     print('Reading labeled images from: ' + srcdir)
-    images = sorted(glob.glob(os.path.join(srcdir, prefix + "_images", "*.nii.gz")))
+    # images_m = sorted(glob.glob(os.path.join(srcdir, prefix + "_images", "*_M.nii.gz")))
+    images_p = sorted(glob.glob(os.path.join(srcdir, prefix + "_images", "*_P.nii.gz")))
     labels = sorted(glob.glob(os.path.join(srcdir, prefix + "_labels", "*.nii.gz")))
     
+    # # For both magnitude and phase images
+    # data_dicts = [
+    #     {"image_m": image_m_name, "image_p": image_p_name, "label":label_name}
+    #     for image_m_name, image_p_name, label_name in zip(images_m, images_p, labels)
+    # ]
+
+    # Using only phase images
     data_dicts = [
         {"image": image_name, "label": label_name}
-        for image_name, label_name in zip(images, labels)
+        for image_name, label_name in zip(images_p, labels)
     ]
 
     return data_dicts
@@ -358,10 +389,18 @@ def generateLabeledFileList(srcdir, prefix):
 def generateFileList(srcdir):
     
     print('Reading images from: ' + srcdir)
-    images = sorted(glob.glob(os.path.join(srcdir, "*.nii.gz")))
+    # images_m = sorted(glob.glob(os.path.join(srcdir, "*_M.nii.gz")))
+    images_p = sorted(glob.glob(os.path.join(srcdir, "*_P.nii.gz")))
     
+    # # For both magnitude and phase images    
+    # data_dicts = [
+    #     {"image_m": image_m_name, "image_p": image_p_name}
+    #     for image_m_name, image_p_name in zip(images_m, images_p)
+    # ]
+
+    # Using only phase images
     data_dicts = [
-        {"image": image_name} for image_name in images
+        {"image": image_name} for image_name in images_p
     ]
 
     return data_dicts
@@ -383,7 +422,9 @@ def setupModel(param):
         norm=Norm.BATCH,
     )
     
-    post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=param.out_channels)
-    post_label = AsDiscrete(to_onehot=True, n_classes=param.out_channels)
+    post_pred = AsDiscrete(argmax=True, to_onehot=param.out_channels, n_classes=param.out_channels)
+    post_label = AsDiscrete(to_onehot=param.out_channels, n_classes=param.out_channels)
+    #post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=param.out_channels)  # Mariana: Deprecated error
+    #post_label = AsDiscrete(to_onehot=True, n_classes=param.out_channels)              # Mariana: Deprecated error
 
     return (model_unet, post_pred, post_label)

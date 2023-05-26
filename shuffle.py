@@ -10,7 +10,7 @@ def shuffle_dataset(src_dir, dst_dir, training_split, dir_prefix):
 
   random.seed()
   
-  cases = [1, 2, 3, 4, 5, 7, 8, 9, 12, 13, 14, 15, 17, 18, 19, 22, 26, 33, 35, 36, 37, 38, 41, 45]
+  cases = list(range(0,sum(training_split)))
   random.shuffle(cases)
   
   
@@ -35,13 +35,16 @@ def shuffle_dataset(src_dir, dst_dir, training_split, dir_prefix):
     start_index = training_split[group]
     end_index = training_split[group]+training_split[group+1]
     for i in range(start_index, end_index):
-      # image file
-      filename = 't2-%d.nii.gz' % cases[i]
-      src_path = '%s/%s' % (src_dir, filename)
-      shutil.copy(src_path, dst_dir_image)
-      # label file
+      # images files
+      filename1 = 'PhantomSynthetic_%s_M.nii.gz' % str(cases[i]).zfill(3) 
+      filename2 = 'PhantomSynthetic_%s_P.nii.gz' % str(cases[i]).zfill(3) 
+      src_path1 = '%s/%s' % (src_dir, filename1)
+      src_path2 = '%s/%s' % (src_dir, filename2)
+      shutil.copy(src_path1, dst_dir_image)
+      shutil.copy(src_path2, dst_dir_image)
       
-      filename = 't2-%d-label.nii.gz' % cases[i]
+      # label file
+      filename = 'PhantomSynthetic_%s_label.nii.gz' % str(cases[i]).zfill(3) 
       src_path = '%s/%s' % (src_dir, filename)
       shutil.copy(src_path, dst_dir_label)
 
