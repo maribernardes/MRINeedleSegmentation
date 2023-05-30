@@ -91,8 +91,8 @@ class Param():
 
         self.in_channels = int(self.config.get('common', 'in_channels'))
         self.out_channels = int(self.config.get('common', 'out_channels'))
-
-
+        self.axcodes = self.config.get('common', 'orientation', fallback ='RAS') # Mariana: added for dealing with different orientation datasets
+        
 class TrainingParam(Param):
     
     def __init__(self, filename='config.ini'):
@@ -100,7 +100,6 @@ class TrainingParam(Param):
 
     def readParameters(self):
         super().readParameters()
-
         self.use_tensorboard = int(self.config.get('training', 'use_tensorboard'))
         self.use_matplotlib = int(self.config.get('training', 'use_matplotlib'))
         self.training_name = self.config.get('training', 'training_name')
@@ -181,7 +180,7 @@ def loadTrainingTransforms(param):
         EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
         
         Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
-        Orientationd(keys=["image", "label"], axcodes="LPS"),
+        Orientationd(keys=["image", "label"], axcodes=param.axcodes),
         scaleIntensity,
         CropForegroundd(keys=["image", "label"], source_key="image"),
         RandCropByPosNegLabeld(
@@ -282,7 +281,7 @@ def loadValidationTransforms(param):
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead  
  
             Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
-            Orientationd(keys=["image", "label"], axcodes="LPS"),
+            Orientationd(keys=["image", "label"], axcodes=param.axcodes),
             scaleIntensity,
             CropForegroundd(keys=["image", "label"], source_key="image"),
             ToTensord(keys=["image", "label"]),
@@ -320,7 +319,7 @@ def loadInferenceTransforms(param, output_path):
             EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
 
             Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")),
-            Orientationd(keys=["image"], axcodes="LPS"),
+            Orientationd(keys=["image"], axcodes=param.axcodes),
             scaleIntensity,
             CropForegroundd(keys=["image"], source_key="image"),
             #ToTensord(keys=["image"]),
@@ -413,7 +412,7 @@ def generateFileList(srcdir):
 def setupModel(param):
 
     model_unet = UNet(
-        dimensions=3,
+        spatial_dims=3, # Mariana: dimensions=3 was deprecated
         in_channels=param.in_channels,
         out_channels=param.out_channels,
         channels=(16, 32, 64, 128, 256),
