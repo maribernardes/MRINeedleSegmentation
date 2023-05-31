@@ -179,10 +179,10 @@ def loadTrainingTransforms(param):
         LoadImaged(keys=["image", "label"]),
         EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
         
-        Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
         Orientationd(keys=["image", "label"], axcodes=param.axcodes),
+        Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
         scaleIntensity,
-        CropForegroundd(keys=["image", "label"], source_key="image"),
+        # CropForegroundd(keys=["image", "label"], source_key="image"),
         RandCropByPosNegLabeld(
             keys=["image", "label"],
             label_key="label",
@@ -280,8 +280,8 @@ def loadValidationTransforms(param):
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead  
  
-            Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
             Orientationd(keys=["image", "label"], axcodes=param.axcodes),
+            Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")),
             scaleIntensity,
             CropForegroundd(keys=["image", "label"], source_key="image"),
             ToTensord(keys=["image", "label"]),
@@ -318,8 +318,8 @@ def loadInferenceTransforms(param, output_path):
             LoadImaged(keys=["image"]),
             EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
 
-            Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")),
             Orientationd(keys=["image"], axcodes=param.axcodes),
+            Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")),
             scaleIntensity,
             CropForegroundd(keys=["image"], source_key="image"),
             #ToTensord(keys=["image"]),
@@ -415,8 +415,10 @@ def setupModel(param):
         spatial_dims=3, # Mariana: dimensions=3 was deprecated
         in_channels=param.in_channels,
         out_channels=param.out_channels,
-        channels=(16, 32, 64, 128, 256),
-        strides=(2, 2, 2, 2),
+        # channels=(16, 32, 64, 128, 256),
+        # strides=(2, 2, 2, 2),
+        channels=[16, 32, 64, 128], # Reduce the number of channels to fit the smaller spatial dimensions
+        strides=[(1, 2, 2), (1, 2, 2), (1, 1, 1)], # Adjust the strides based on the desired downsampling (keep depth untouched)
         num_res_units=2,
         norm=Norm.BATCH,
     )

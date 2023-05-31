@@ -91,7 +91,13 @@ def run(param, train_files, val_files):
                 batch_data["label"].to(device),
             )
             optimizer.zero_grad()
+            # print('Inputs tensor shape:')
+            # print(inputs.shape)
+            # print('Labels tensor shape:')
+            # print(labels.shape)
             outputs = model(inputs)
+            # print('Outputs tensor shape:')
+            # print(outputs.shape)            
             loss = loss_function(outputs, labels)
             loss.backward()
             optimizer.step()
