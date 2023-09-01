@@ -25,7 +25,7 @@ def shuffle_dataset(src_dir, dst_dir, training_split, dir_prefix, file_prefix):
 
   # Randomly shuffle the cases
   random.seed()
-  cases = list(range(0,sum(training_split)))
+  cases = list(range(1,sum(training_split)+1))
   random.shuffle(cases)
         
   # Clean the destination folders
@@ -44,23 +44,35 @@ def shuffle_dataset(src_dir, dst_dir, training_split, dir_prefix, file_prefix):
     dst_dir_image = '%s/%s_images' % (dst_dir, dir_prefix[group])
     dst_dir_label = '%s/%s_labels' % (dst_dir, dir_prefix[group])
 
-    # Get start and end index for current group
+    # Get start/end indexes for current group
     start_index = end_index
     end_index = start_index + training_split[group]
     for i in range(start_index, end_index):
+      print(i)
       # images files
       filename1 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_M.nii.gz'
       filename2 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_P.nii.gz'
+      filename3 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_R.nii.gz'
+      filename4 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_I.nii.gz'
       src_path1 = '%s/%s' % (src_dir, filename1)
       src_path2 = '%s/%s' % (src_dir, filename2)
+      src_path3 = '%s/%s' % (src_dir, filename3)
+      src_path4 = '%s/%s' % (src_dir, filename4)
       shutil.copy(src_path1, dst_dir_image)
       shutil.copy(src_path2, dst_dir_image)
+      shutil.copy(src_path3, dst_dir_image)
+      shutil.copy(src_path4, dst_dir_image)
       
       # label file
-      filename = file_prefix + '_'+ str(cases[i]).zfill(3) + '_label.nii.gz'
-      src_path = '%s/%s' % (src_dir, filename)
-      shutil.copy(src_path, dst_dir_label)
-
+      filename1 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_needle_label.nii.gz'
+      filename2 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_tip_label.nii.gz'
+      filename3 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_both_label.nii.gz'
+      src_path1 = '%s/%s' % (src_dir, filename1)
+      src_path2 = '%s/%s' % (src_dir, filename2)
+      src_path3 = '%s/%s' % (src_dir, filename3)
+      shutil.copy(src_path1, dst_dir_label)
+      shutil.copy(src_path2, dst_dir_label)
+      shutil.copy(src_path3, dst_dir_label)
 
 def main(argv):
 

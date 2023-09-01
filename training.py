@@ -1,7 +1,7 @@
 #! /usr/bin/python
 
 from monai.utils import first, set_determinism
-from monai.metrics import compute_meandice
+# from monai.metrics import compute_meandice
 from monai.metrics import DiceMetric
 from monai.losses import DiceLoss
 from monai.inferers import sliding_window_inference
@@ -36,33 +36,27 @@ def run(param, train_files, val_files):
         
     torch.multiprocessing.set_sharing_strategy('file_system')
     print_config()
-    
     set_determinism(seed=0)
-    
     
     #--------------------------------------------------------------------------------
     # Train/validation datasets
     #--------------------------------------------------------------------------------
-
+    print('Loading dataset')
     val_transforms = loadValidationTransforms(param)
     train_transforms = loadTrainingTransforms(param)
-    
-    
     val_ds = CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=4)
     val_loader = DataLoader(val_ds, batch_size=1, num_workers=4)
-
     train_ds = CacheDataset(data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=4)
-    # use batch_size=2 to load images and use RandCropByPosNegLabeld
-    # to generate 2 x 4 images for network training
     train_loader = DataLoader(train_ds, batch_size=2, shuffle=True, num_workers=4)
-    
+    # use batch_size=2 to load images and use RandCropByPosNegLabeld
     
     #--------------------------------------------------------------------------------
     # Training
     #--------------------------------------------------------------------------------
-    
+    print('Setting UNet')
     (model_unet, post_pred, post_label) = setupModel(param)
     
+    print('Selecting training device')
     # standard PyTorch program style: create UNet, DiceLoss and Adam optimizer
     device = torch.device(param.training_device_name)
     model = model_unet.to(device)
@@ -119,7 +113,6 @@ def run(param, train_files, val_files):
                         val_data["image"].to(device),
                         val_data["label"].to(device),
                     )
-                    #roi_size = (160, 160, 160)
                     roi_size = param.window_size
                     sw_batch_size = 4
                     val_outputs = sliding_window_inference(
@@ -195,8 +188,8 @@ def main(argv):
     print('Loading parameters from: ' + config_file)
     param = TrainingParam(config_file)
 
-    train_files = generateLabeledFileList(param.data_dir, 'train')
-    val_files = generateLabeledFileList(param.data_dir, 'val')
+    train_files = generateLabeledFileList(param, 'train')
+    val_files = generateLabeledFileList(param, 'val')
     
     n_train = len(train_files)
     n_val = len(val_files)
@@ -204,7 +197,6 @@ def main(argv):
     print('Validation data size: ' + str(n_val))    
 
     run(param, train_files, val_files)
-
 
   except Exception as e:
     print(e)
