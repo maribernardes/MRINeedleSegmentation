@@ -4,6 +4,7 @@ import torch
 from configparser import ConfigParser
 from monai.transforms import (
     Activationsd,
+    AdjustContrastd,
     AsDiscrete,
     AsDiscreted,
     # AddChanneld, # Mariana: deprecated. Replace with EnsureChannelFirst
@@ -17,9 +18,11 @@ from monai.transforms import (
     NormalizeIntensityd,
     Orientationd,
     RandAffined,
+    RandCropByLabelClassesd,
     RandCropByPosNegLabeld,
     RandAdjustContrastd,
     RandFlipd,
+    RandZoomd,
     RandScaleIntensityd,
     RandStdShiftIntensityd,
     SaveImaged,
@@ -71,7 +74,6 @@ class Param():
  
         self.data_dir = self.config.get('common', 'data_dir')
         self.root_dir = self.config.get('common', 'root_dir')
-        
         self.pixel_dim = self.getvector(self.config, 'common', 'pixel_dim')
         if self.pixel_dim == None:
             self.pixel_dim = (1.0,1.0,1.0)
@@ -87,6 +89,7 @@ class Param():
         self.in_channels = int(self.config.get('common', 'in_channels'))
         self.out_channels = int(self.config.get('common', 'out_channels'))
         self.input_type = self.config.get('common', 'input_type')
+        self.label_type = self.config.get('common', 'label_type')
         self.model_file = self.config.get('common', 'model_file')
 
         
@@ -149,163 +152,156 @@ class InferenceParam(Param):
 #--------------------------------------------------------------------------------
 
 def loadTrainingTransforms(param):
-    # scaleIntensity = None
-    # if param.pixel_intensity_scaling == 'absolute':
-    #     print('Intensity scaling by max/min')
-    #     scaleIntensity = ScaleIntensityRanged(
-    #         keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-    #         b_min=0.0, b_max=1.0, clip=True,
-    #     )
-    # elif param.pixel_intensity_scaling == 'percentile':
-    #     print('Intensity scaling by percentile')
-    #     scaleIntensity = ScaleIntensityRangePercentilesd(
-    #         keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
-    #         b_min=0.0, b_max=1.0, clip=True,
-    #         )
-    # else: # 'normalize
-    #     scaleIntensity = NormalizeIntensityd(keys=["image"])
-        
+    # Load images
     if param.in_channels==2:
+        # Two channels input
         transform_array = [
-            # Mag/Phase
             LoadImaged(keys=["image_1", "image_2", "label"]),
             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
-            ScaleIntensityd(keys=["image_1", "image_2", "label"], minv=0, maxv=1), # Scale intensity for each channel individually
-            ConcatItemsd(keys=["image_1", "image_2"], name="image"), # Mariana: concatenate mag and phase in a two-channel array
+            ConcatItemsd(keys=["image_1", "image_2"], name="image")
         ]
     else:
+        # One channel input
         transform_array = [            
-            # Phase only
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
-            ScaleIntensityd(keys=["image", "label"], minv=0, maxv=1),
         ]
+
+    # Intensity adjustment
+    if (param.input_type == 'R') or (param.input_type == 'I'):
+        transform_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
+    transform_array.append(ScaleIntensityd(keys=["image", "label"], minv=0, maxv=1, channel_wise=True))
+
+    # Spatial adjustments
     transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
     transform_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
-    # transform_array.append(CropForegroundd(keys=["image", "label"], source_key="image"))
-    transform_array.append(RandCropByPosNegLabeld(
-                keys=["image", "label"],
-                label_key="label",
-                spatial_size=param.window_size,
-                pos=1,
-                neg=1,
-                num_samples=4,
-                image_key="image",
-                image_threshold=0,
-            ))
-            # user can also add other random transforms
-    transform_array.append(ToTensord(keys=["image", "label"]))
+
+    # Data augmentation
+    transform_array.append(RandZoomd(
+        keys=['image', 'label'],
+        prob=0.5,
+        min_zoom=1.1,
+        max_zoom=1.5,
+        mode=['area', 'nearest'],
+    ))
+    transform_array.append(RandFlipd(
+        keys=['image', 'label'],
+        prob=0.5,
+        spatial_axis=2,
+    ))
+
+    # Balance background/foreground
+    # transform_array.append(RandCropByPosNegLabeld(
+    #     keys=["image", "label"],
+    #     label_key="label",
+    #     spatial_size=param.window_size,
+    #     pos=1, #0.8
+    #     neg=1, #0.2
+    #     num_samples=2,
+    #     image_key="image",
+    #     image_threshold=0, #0.05
+    # ))
+    transform_array.append(RandCropByLabelClassesd(
+        keys=["image", "label"], 
+        label_key="label", 
+        spatial_size=param.window_size, 
+        ratios=[1,3], 
+        num_classes=2,
+        num_samples=5, 
+        image_key="image", 
+        image_threshold=0,
+    ))
     
-    if param.training_rand_rot == 1:
-        transform_array.append(
-            RandAffined(
-                keys=['image', 'label'],
-                mode=('bilinear', 'nearest'),
-                prob=1.0,
-                spatial_size=param.window_size,
-                rotate_range=param.training_rand_rot_angle,
-                scale_range=param.training_rand_rot_scale)
-        )
+    # user can also add other random transforms
+    # transform_array.append(ToTensord(keys=["image", "label"]))
+    # transform_array.append(EnsureTyped(keys=["image", "label"]))
+    
+    # if param.training_rand_rot == 1:
+    #     transform_array.append(
+    #         RandAffined(
+    #             keys=['image', 'label'],
+    #             mode=('bilinear', 'nearest'),
+    #             prob=1.0,
+    #             spatial_size=param.window_size,
+    #             rotate_range=param.training_rand_rot_angle,
+    #             scale_range=param.training_rand_rot_scale)
+    #     )
         
-    if param.training_rand_flip == 1:
-        transform_array.append(
-            RandFlipd(
-                keys=['image', 'label'],
-                prob=0.5,
-                spatial_axis=0 # TODO: Make sure that the axis corresponds to L-R
-            )
-        )
+    # if param.training_rand_flip == 1:
+    #     transform_array.append(
+    #         RandFlipd(
+    #             keys=['image', 'label'],
+    #             prob=0.5,
+    #             spatial_axis=0 # TODO: Make sure that the axis corresponds to L-R
+    #         )
+    #     )
 
-    if param.training_rand_shift_intensity > 0.0:
-        transform_array.append(
-            RandStdShiftIntensityd(
-                keys=['image'],
-                prob=1.0,
-                factors=param.training_rand_shift_intensity
-            )
-        )
+    # if param.training_rand_shift_intensity > 0.0:
+    #     transform_array.append(
+    #         RandStdShiftIntensityd(
+    #             keys=['image'],
+    #             prob=1.0,
+    #             factors=param.training_rand_shift_intensity
+    #         )
+    #     )
         
-    if param.training_rand_contrast == 1:
-        transform_array.append(
-            RandAdjustContrastd(
-                keys=['image'],
-                prob=1.0,
-                gamma=(0.5,1.5)
-            )
-        )
+    # if param.training_rand_contrast == 1:
+    #     transform_array.append(
+    #         RandAdjustContrastd(
+    #             keys=['image'],
+    #             prob=1.0,
+    #             gamma=(0.5,1.5)
+    #         )
+    #     )
 
-    if param.training_rand_scale > 0.0:
-        transform_array.append(
-            RandScaleIntensityd(
-                keys=['image'],
-                prob=1.0,
-                factors=param.training_rand_scale
-            )
-        )
+    # if param.training_rand_scale > 0.0:
+    #     transform_array.append(
+    #         RandScaleIntensityd(
+    #             keys=['image'],
+    #             prob=1.0,
+    #             factors=param.training_rand_scale
+    #         )
+    #     )
         
     train_transforms = Compose(transform_array)
     return train_transforms
 
 def loadValidationTransforms(param):    
-    # if param.pixel_intensity_scaling == 'absolute':
-    #     print('Intensity scaling by max/min')
-    #     scaleIntensity = ScaleIntensityRanged(
-    #         keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-    #         b_min=0.0, b_max=1.0, clip=True,
-    #     )     
-    # elif param.pixel_intensity_scaling == 'percentile':
-    #     print('Intensity scaling by percentile')
-    #     scaleIntensity = ScaleIntensityRangePercentilesd(
-    #         keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
-    #         b_min=0.0, b_max=1.0, clip=True,
-    #         )
-    # else: # 'normalize
-    #     scaleIntensity = NormalizeIntensityd(keys=["image"])
+    # Load images
     if param.in_channels==2:
+        # Two channels input
         val_array = [
-            # Mag/Phase
             LoadImaged(keys=["image_1", "image_2", "label"]),
-            EnsureChannelFirstd(keys=["image_1", "image_2","label"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead  
-            ScaleIntensityd(keys=["image_1", "image_2", "label"], minv=0, maxv=1), # Mariana: Scale intensity for each channel individually
-            ConcatItemsd(keys=["image_1", "image_2"], name="image"), # Mariana: concatenate mag and phase in a two-channel array
+            EnsureChannelFirstd(keys=["image_1", "image_2", "label"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
+            ConcatItemsd(keys=["image_1", "image_2"], name="image")
         ]
     else:
-        val_array = [
-            # Phase only
+        # One channel input
+        val_array = [            
             LoadImaged(keys=["image", "label"]),
-            EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead  
-            ScaleIntensityd(keys=["image", "label"], minv=0, maxv=1), # Mariana: Scale intensity for each channel individually
+            EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
         ]
+
+    # Intensity adjustment
+    if (param.input_type == 'R') or (param.input_type == 'I'):
+        val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
+    val_array.append(ScaleIntensityd(keys=["image", "label"], minv=0, maxv=1, channel_wise=True))
+
+    # Spatial adjustments
     val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
     val_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
-    val_array.append(CropForegroundd(keys=["image", "label"], source_key="image"))
-    val_array.append(ToTensord(keys=["image", "label"]))
-    
+    # val_array.append(CropForegroundd(keys=["image", "label"], source_key="image"))
+    # val_array.append(ToTensord(keys=["image", "label"]))
+    # val_array.append(EnsureTyped(keys=["image", "label"]))
     val_transforms = Compose(val_array)
     return val_transforms
 
-
 def loadInferenceTransforms(param, output_path):
-    # if param.pixel_intensity_scaling == 'absolute':
-    #     print('Intensity scaling by max/min')
-    #     scaleIntensity = ScaleIntensityRanged(
-    #         keys=["image"], a_min=param.pixel_intensity_min, a_max=param.pixel_intensity_max,
-    #         b_min=0.0, b_max=1.0, clip=True,
-    #     )
-    # elif param.pixel_intensity_scaling == 'percentile':
-    #     print('Intensity scaling by percentile')
-    #     scaleIntensity = ScaleIntensityRangePercentilesd(
-    #         keys=["image"], lower=param.pixel_intensity_percentile_min, upper=param.pixel_intensity_percentile_max,
-    #         b_min=0.0, b_max=1.0, clip=True,
-    #         )
-    # else: # 'normalize
-    #     scaleIntensity = NormalizeIntensityd(keys=["image"])
     if param.in_channels==2:
         pre_array = [
-            # Mag/Phase
+            # Two channels
             LoadImaged(keys=["image_1", "image_2"]),
             EnsureChannelFirstd(keys=["image_1", "image_2"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
-            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1), # Mariana: Scale intensity for each channel individually
             ConcatItemsd(keys=["image_1", "image_2"], name="image"), # Mariana: concatenate mag and phase in a two-channel array
         ]        
     else:
@@ -314,18 +310,17 @@ def loadInferenceTransforms(param, output_path):
             LoadImaged(keys=["image"]),
             EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
         ]
+    pre_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
     pre_array.append(Orientationd(keys=["image"], axcodes=param.axcodes))
     pre_array.append(Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")))
-        # scaleIntensity,
-    pre_array.append(CropForegroundd(keys=["image"], source_key="image"))
+    # pre_array.append(CropForegroundd(keys=["image"], source_key="image"))
         #ToTensord(keys=["image"]),
-    pre_array.append(EnsureTyped(keys=["image"]))
-    
+    # pre_array.append(EnsureTyped(keys=["image"]))
     pre_transforms = Compose(pre_array)
 
     # define post transforms
     post_transforms = Compose([
-        EnsureTyped(keys="pred"),
+        # EnsureTyped(keys="pred"),
         Invertd(
             keys="pred",  # invert the `pred` data field, also support multiple fields
             transform=pre_transforms,
@@ -362,21 +357,21 @@ def generateLabeledFileList(param, prefix):
     images_p = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_images", "*_P.nii.gz")))
     images_r = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_images", "*_R.nii.gz")))
     images_i = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_images", "*_I.nii.gz")))
-    labels = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_labels", "*_needle_label.nii.gz")))
+    labels = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_labels", "*_"+param.label_type+"_label.nii.gz")))
     
     # Use two types of images combined
     if param.in_channels==2:
         # Use real and imaginary images
         if param.input_type=='R' or param.input_type=='I':
             data_dicts = [
-                {"image_1": image_m_name, "image_2": image_p_name, "label":label_name}
-                for image_m_name, image_p_name, label_name in zip(images_m, images_p, labels)
+                {"image_1": image_r_name, "image_2": image_i_name, "label":label_name}
+                for image_r_name, image_i_name, label_name in zip(images_r, images_i, labels)
             ]
         # Use magnitude and phase images
         else:
             data_dicts = [
-                {"image_1": image_r_name, "image_2": image_i_name, "label":label_name}
-                for image_r_name, image_i_name, label_name in zip(images_r, images_i, labels)
+                {"image_1": image_m_name, "image_2": image_p_name, "label":label_name}
+                for image_m_name, image_p_name, label_name in zip(images_m, images_p, labels)
             ]
     # Use only one type of image        
     else:
@@ -406,26 +401,26 @@ def generateLabeledFileList(param, prefix):
             ]
     return data_dicts    
 
-def generateFileList(param):
+def generateFileList(param, input_path):
     print('Reading images from: ' + param.data_dir)
-    images_m = sorted(glob.glob(os.path.join(param.data_dir, "*_M.nii.gz")))
-    images_p = sorted(glob.glob(os.path.join(param.data_dir, "*_P.nii.gz")))
-    images_r = sorted(glob.glob(os.path.join(param.data_dir, "*_R.nii.gz")))
-    images_i = sorted(glob.glob(os.path.join(param.data_dir, "*_I.nii.gz")))
+    images_m = sorted(glob.glob(os.path.join(param.data_dir, input_path, "*_M.nii.gz")))
+    images_p = sorted(glob.glob(os.path.join(param.data_dir, input_path, "*_P.nii.gz")))
+    images_r = sorted(glob.glob(os.path.join(param.data_dir, input_path, "*_R.nii.gz")))
+    images_i = sorted(glob.glob(os.path.join(param.data_dir, input_path, "*_I.nii.gz")))
     
     # Use two types of images combined
     if param.in_channels==2:
         # Use real and imaginary images
         if param.input_type=='R' or param.input_type=='I':
             data_dicts = [
-                {"image_1": image_m_name, "image_2": image_p_name}
-                for image_m_name, image_p_name in zip(images_m, images_p)
+                {"image_1": image_r_name, "image_2": image_i_name}
+                for image_r_name, image_i_name in zip(images_r, images_i)
             ]
         # Use magnitude and phase images
         else:
             data_dicts = [
-                {"image_1": image_r_name, "image_2": image_i_name}
-                for image_r_name, image_i_name in zip(images_r, images_i)
+                {"image_1": image_m_name, "image_2": image_p_name}
+                for image_m_name, image_p_name in zip(images_m, images_p)
             ]    
     # Use only one type of image        
     else:
