@@ -64,15 +64,19 @@ def shuffle_dataset(src_dir, dst_dir, training_split, dir_prefix, file_prefix):
       shutil.copy(src_path4, dst_dir_image)
       
       # label file
-      filename1 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_needle_label.nii.gz'
+      filename1 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_shaft_label.nii.gz'
       filename2 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_tip_label.nii.gz'
       filename3 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_both_label.nii.gz'
+      filename4 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_multi_label.nii.gz'
       src_path1 = '%s/%s' % (src_dir, filename1)
       src_path2 = '%s/%s' % (src_dir, filename2)
       src_path3 = '%s/%s' % (src_dir, filename3)
-      shutil.copy(src_path1, dst_dir_label)
-      shutil.copy(src_path2, dst_dir_label)
-      shutil.copy(src_path3, dst_dir_label)
+      src_path4 = '%s/%s' % (src_dir, filename4)
+      shutil.copy(src_path1, dst_dir_image)
+      shutil.copy(src_path2, dst_dir_image)
+      shutil.copy(src_path3, dst_dir_image)
+      shutil.copy(src_path4, dst_dir_image)
+      
 
 def main(argv):
 
