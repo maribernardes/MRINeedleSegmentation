@@ -72,10 +72,10 @@ def shuffle_dataset(src_dir, dst_dir, training_split, dir_prefix, file_prefix):
       src_path2 = '%s/%s' % (src_dir, filename2)
       src_path3 = '%s/%s' % (src_dir, filename3)
       src_path4 = '%s/%s' % (src_dir, filename4)
-      shutil.copy(src_path1, dst_dir_image)
-      shutil.copy(src_path2, dst_dir_image)
-      shutil.copy(src_path3, dst_dir_image)
-      shutil.copy(src_path4, dst_dir_image)
+      shutil.copy(src_path1, dst_dir_label)
+      shutil.copy(src_path2, dst_dir_label)
+      shutil.copy(src_path3, dst_dir_label)
+      shutil.copy(src_path4, dst_dir_label)
       
 
 def main(argv):
