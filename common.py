@@ -191,30 +191,31 @@ def loadTrainingTransforms(param):
     ))
 
     # Balance background/foreground
-    # transform_array.append(RandCropByPosNegLabeld(
-    #     keys=["image", "label"],
-    #     label_key="label",
-    #     spatial_size=param.window_size,
-    #     pos=1, #0.8
-    #     neg=1, #0.2
-    #     num_samples=1,
-    #     image_key="image",
-    #     image_threshold=0, #0.05
-    # ))
-    if param.out_channels==2:
-        ratios = [1,3]
-    else:
-        ratios = [1,3,2]
-    transform_array.append(RandCropByLabelClassesd(
-        keys=["image", "label"], 
-        label_key="label", 
-        spatial_size=param.window_size, 
-        ratios=ratios, 
-        num_classes=param.out_channels,
-        num_samples=1, 
-        image_key="image", 
-        image_threshold=0,
-))
+    transform_array.append(RandCropByPosNegLabeld(
+        keys=["image", "label"],
+        label_key="label",
+        spatial_size=param.window_size,
+        pos=5, 
+        neg=1,
+        num_samples=5,
+        image_key="image",
+        image_threshold=0, 
+    ))
+    
+    # if param.out_channels==2:
+    #     ratios = [1,3]
+    # else:
+    #     ratios = [1,3,2]
+    # transform_array.append(RandCropByLabelClassesd(
+    #     keys=["image", "label"], 
+    #     label_key="label", 
+    #     spatial_size=param.window_size, 
+    #     ratios=ratios, 
+    #     num_classes=param.out_channels,
+    #     num_samples=1, 
+    #     image_key="image", 
+    #     image_threshold=0,
+    #     ))
 
     # user can also add other random transforms
     # transform_array.append(ToTensord(keys=["image", "label"]))
