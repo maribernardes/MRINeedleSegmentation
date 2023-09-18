@@ -170,7 +170,7 @@ def loadTrainingTransforms(param):
     # Intensity adjustment
     if (param.input_type == 'R') or (param.input_type == 'I'):
         transform_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
-    transform_array.append(ScaleIntensityd(keys=["image", "label"], minv=0, maxv=1, channel_wise=True))
+    transform_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
 
     # Spatial adjustments
     transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
@@ -290,7 +290,7 @@ def loadValidationTransforms(param):
     # Intensity adjustment
     if (param.input_type == 'R') or (param.input_type == 'I'):
         val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
-    val_array.append(ScaleIntensityd(keys=["image", "label"], minv=0, maxv=1, channel_wise=True))
+    val_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
 
     # Spatial adjustments
     val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
