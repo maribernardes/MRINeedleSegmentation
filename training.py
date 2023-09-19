@@ -66,7 +66,7 @@ def run(param, train_files, val_files):
     loss_function = GeneralizedDiceLoss(to_onehot_y=True, softmax=True)
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
     # dice_metric = DiceMetric(include_background=False, reduction="mean")
-    dice_metric = compute_generalized_dice(include_background=False, reduction="mean")
+    dice_metric = compute_generalized_dice(include_background=False)
     
     
     val_interval = 2
