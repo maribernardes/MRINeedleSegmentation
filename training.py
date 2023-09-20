@@ -64,8 +64,8 @@ def run(param, train_files, val_files):
     # Loss function & optimizer
     dist_mat = np.array([
         [0., 1., 1.],
-        [1., 0., 0.6],
-        [1., 0.6, 0.]
+        [1., 0., 0.9],
+        [1., 0.9, 0.]
     ])
     #loss_function = DiceLoss(to_onehot_y=True, softmax=True)
     #loss_function = GeneralizedDiceLoss(to_onehot_y=True, softmax=True)
