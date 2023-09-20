@@ -64,8 +64,7 @@ def run(param, train_files, val_files):
     # Loss function & optimizer
     #loss_function = DiceLoss(to_onehot_y=True, softmax=True)
     #loss_function = GeneralizedDiceLoss(to_onehot_y=True, softmax=True)
-    # loss_function = DiceCELoss(lambda_ce=1, lambda_dice=0.001, to_onehot_y=True, softmax=True)
-    loss_function = FocalLoss(gamma=0, focal_weight=0.75, to_onehot_y=True, softmax=True)
+    loss_function = DiceCELoss(gamma=0, focal_weight=0.75, lambda_ce=1, lambda_dice=0.001, to_onehot_y=True, softmax=True)
     # loss_function = DiceFocalLoss(to_onehot_y=True, softmax=True)
     # loss_function = GeneralizedDiceFocalLoss(to_onehot_y=True, softmax=True)
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
