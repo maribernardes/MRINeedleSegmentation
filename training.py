@@ -3,7 +3,7 @@
 from monai.utils import first, set_determinism
 # from monai.metrics import compute_meandice
 from monai.metrics import DiceMetric
-from monai.losses import DiceLoss, GeneralizedDiceLoss, DiceCELoss, DiceFocalLoss, GeneralizedDiceFocalLoss
+from monai.losses import DiceLoss, GeneralizedDiceLoss, DiceCELoss, DiceFocalLoss, GeneralizedDiceFocalLoss, FocalLoss
 from monai.inferers import sliding_window_inference
 from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
 from monai.config import print_config
@@ -64,7 +64,8 @@ def run(param, train_files, val_files):
     # Loss function & optimizer
     #loss_function = DiceLoss(to_onehot_y=True, softmax=True)
     #loss_function = GeneralizedDiceLoss(to_onehot_y=True, softmax=True)
-    loss_function = DiceCELoss(lambda_ce=1, lambda_dice=0.001, to_onehot_y=True, softmax=True)
+    # loss_function = DiceCELoss(lambda_ce=1, lambda_dice=0.001, to_onehot_y=True, softmax=True)
+    loss_function = FocalLoss(gamma=0, alpha=0.75, to_onehot_y=True, softmax=True)
     # loss_function = DiceFocalLoss(to_onehot_y=True, softmax=True)
     # loss_function = GeneralizedDiceFocalLoss(to_onehot_y=True, softmax=True)
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
