@@ -3,7 +3,7 @@
 from monai.utils import first, set_determinism
 # from monai.metrics import compute_meandice
 from monai.metrics import DiceMetric
-from monai.losses import DiceLoss, GeneralizedDiceLoss, DiceCELoss, GeneralizedWassersteinDiceLoss
+from monai.losses import DiceLoss, GeneralizedDiceLoss, DiceCELoss, DiceFocalLoss
 from monai.inferers import sliding_window_inference
 from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
 from monai.config import print_config
@@ -62,15 +62,10 @@ def run(param, train_files, val_files):
     model = model_unet.to(device)
     
     # Loss function & optimizer
-    dist_mat = np.array([
-        [0., 1., 1.],
-        [1., 0., 0.9],
-        [1., 0.9, 0.]
-    ])
     #loss_function = DiceLoss(to_onehot_y=True, softmax=True)
     #loss_function = GeneralizedDiceLoss(to_onehot_y=True, softmax=True)
-    # loss_function = DiceCELoss(to_onehot_y=True, softmax=True)
-    loss_function = GeneralizedWassersteinDiceLoss(dist_matrix=dist_mat)
+    #loss_function = DiceCELoss(to_onehot_y=True, softmax=True)
+    loss_function = DiceFocalLoss(to_onehot_y=True, softmax=True)
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
     dice_metric = DiceMetric(include_background=False, reduction="mean")
     
