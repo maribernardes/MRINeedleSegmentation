@@ -42,7 +42,6 @@ def run(param, train_files, val_files):
     #--------------------------------------------------------------------------------
     # Train/validation datasets
     #--------------------------------------------------------------------------------
-    print('Loading dataset')
     val_transforms = loadValidationTransforms(param)
     train_transforms = loadTrainingTransforms(param)
     val_ds = CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=4)
