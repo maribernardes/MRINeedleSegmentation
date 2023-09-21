@@ -3,7 +3,7 @@
 from monai.utils import first, set_determinism
 # from monai.metrics import compute_meandice
 from monai.metrics import DiceMetric
-from monai.losses import DiceLoss, GeneralizedDiceLoss, DiceCELoss, DiceFocalLoss, GeneralizedDiceFocalLoss, FocalLoss
+from monai.losses import DiceLoss, GeneralizedDiceLoss, DiceCELoss, FocalLoss, TverskyLoss, DiceFocalLoss, GeneralizedDiceFocalLoss, FocalLoss
 from monai.inferers import sliding_window_inference
 from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
 from monai.config import print_config
@@ -65,7 +65,8 @@ def run(param, train_files, val_files):
     #loss_function = DiceLoss(to_onehot_y=True, softmax=True)
     #loss_function = GeneralizedDiceLoss(to_onehot_y=True, softmax=True)
     #loss_function = DiceCELoss(lambda_ce=2, lambda_dice=1, to_onehot_y=True, softmax=True)
-    loss_function = FocalLoss(gamma=2, alpha=0.25, to_onehot_y=True, use_softmax=True)
+    #loss_function = FocalLoss(gamma=2, alpha=0.25, to_onehot_y=True, use_softmax=True)
+    loss_function = TverskyLoss(alpha=0.3, beta=0.7, to_onehot_y=True, softmax=True)
     
     # loss_function = DiceFocalLoss(gamma=2, focal_weight=0.25, lambda_focal=2, lambda_dice=1, to_onehot_y=True, softmax=True)
     # loss_function = UnifiedFocalLoss(n_classes=3, delta = 0.6, gamma = 0.75, lambda_ = 0.5)
