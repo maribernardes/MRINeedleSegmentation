@@ -62,16 +62,11 @@ def run(param, train_files, val_files):
     model = model_unet.to(device)
     
     # Loss function & optimizer
-    #loss_function = DiceLoss(to_onehot_y=True, softmax=True)
-    #loss_function = GeneralizedDiceLoss(to_onehot_y=True, softmax=True)
-    #loss_function = DiceCELoss(lambda_ce=2, lambda_dice=1, to_onehot_y=True, softmax=True)
-    #loss_function = FocalLoss(gamma=2, alpha=0.25, to_onehot_y=True, use_softmax=True)
-    loss_function = TverskyLoss(alpha=0.3, beta=0.7, to_onehot_y=True, softmax=True)
-    
-    # loss_function = DiceFocalLoss(gamma=2, focal_weight=0.25, lambda_focal=2, lambda_dice=1, to_onehot_y=True, softmax=True)
-    # loss_function = UnifiedFocalLoss(n_classes=3, delta = 0.6, gamma = 0.75, lambda_ = 0.5)
-    # loss_function = DiceFocalLoss(to_onehot_y=True, softmax=True)
-    # loss_function = GeneralizedDiceFocalLoss(to_onehot_y=True, softmax=True)
+    # loss_function = DiceLoss(to_onehot_y=True, softmax=True)
+    # loss_function = GeneralizedDiceLoss(to_onehot_y=True, softmax=True)
+    loss_function = DiceCELoss(lambda_ce=3, lambda_dice=1, to_onehot_y=True, softmax=True)
+    # loss_function = TverskyLoss(alpha=0.3, beta=0.7, to_onehot_y=True, softmax=True)
+    # loss_function = UnifiedFocalLoss(to_onehot_y=True, softmax=True)
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
     dice_metric = DiceMetric(include_background=False, reduction="mean")
     
