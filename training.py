@@ -56,20 +56,14 @@ def run(param, train_files, val_files):
     print('Setting UNet')
     (model_unet, post_pred, post_label) = setupModel(param)
     
-    print('Selecting training device')
     # standard PyTorch program style: create UNet, DiceLoss and Adam optimizer
     device = torch.device(param.training_device_name)
     model = model_unet.to(device)
     
     # Loss function & optimizer
-    # loss_function = DiceLoss(to_onehot_y=True, softmax=True)
-    # loss_function = GeneralizedDiceLoss(to_onehot_y=True, softmax=True)
     loss_function = DiceCELoss(lambda_ce=2, lambda_dice=1, to_onehot_y=True, softmax=True)
-    # loss_function = TverskyLoss(alpha=0.3, beta=0.7, to_onehot_y=True, softmax=True)
-    # loss_function = UnifiedFocalLoss(to_onehot_y=True, softmax=True)
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
     dice_metric = DiceMetric(include_background=False, reduction="mean")
-    
     
     val_interval = 2
     best_metric = -1
@@ -90,13 +84,7 @@ def run(param, train_files, val_files):
                 batch_data["label"].to(device),
             )
             optimizer.zero_grad()
-            # print('Inputs tensor shape:')
-            # print(inputs.shape)
-            # print('Labels tensor shape:')
-            # print(labels.shape)
-            outputs = model(inputs)
-            # print('Outputs tensor shape:')
-            # print(outputs.shape)            
+            outputs = model(inputs)       
             loss = loss_function(outputs, labels)
             loss.backward()
             optimizer.step()

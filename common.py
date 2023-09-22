@@ -25,6 +25,7 @@ from monai.transforms import (
     RandZoomd,
     RandScaleIntensityd,
     RandStdShiftIntensityd,
+    RemoveSmallObjectsd,
     SaveImaged,
     ScaleIntensityd,
     ScaleIntensityRanged,
@@ -105,14 +106,8 @@ class TrainingParam(Param):
         self.training_name = self.config.get('training', 'training_name')
         self.max_epochs = int(self.config.get('training', 'max_epochs', fallback='200'))
         self.training_device_name = self.config.get('training', 'training_device_name')
-        self.training_rand_rot = int(self.config.get('training', 'random_rot', fallback='0'))
-        if self.training_rand_rot ==1:
-            self.training_rand_rot_angle = tuple(self.getvector(self.config, 'training', 'random_rot_angle', '0.0,0.0,0.2617993877991494'))
-            self.training_rand_rot_scale = tuple(self.getvector(self.config, 'training', 'random_rot_scale', '0.1,0.1,0.1'))
         self.training_rand_flip = int(self.config.get('training', 'random_flip', fallback='0'))
-        self.training_rand_shift_intensity = float(self.config.get('training', 'random_shift_intensity', fallback='0.0'))
-        self.training_rand_contrast = int(self.config.get('training', 'random_contrast', fallback='0'))
-        self.training_rand_scale = float(self.config.get('training', 'random_scale', fallback='0.0'))
+        self.training_rand_zoom = float(self.config.get('training', 'random_zoom', fallback='0.0'))
 
 class TestParam(Param):
 
@@ -177,18 +172,20 @@ def loadTrainingTransforms(param):
     transform_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
 
     # Data augmentation
-    transform_array.append(RandZoomd(
-        keys=['image', 'label'],
-        prob=0.5,
-        min_zoom=1.02,
-        max_zoom=1.20,
-        mode=['area', 'nearest'],
-    ))
-    transform_array.append(RandFlipd(
-        keys=['image', 'label'],
-        prob=0.5,
-        spatial_axis=2,
-    ))
+    if param.training_rand_flip == 1:
+        transform_array.append(RandZoomd(
+                keys=['image', 'label'],
+                prob=0.5,
+                min_zoom=1.02,
+                max_zoom=1.20,
+                mode=['area', 'nearest'],
+            ))
+    if param.training_rand_zoom == 1:
+        transform_array.append(RandFlipd(
+            keys=['image', 'label'],
+            prob=0.5,
+            spatial_axis=2,
+        ))
 
     # Balance background/foreground
     transform_array.append(RandCropByPosNegLabeld(
@@ -201,73 +198,7 @@ def loadTrainingTransforms(param):
         image_key="image",
         image_threshold=0, 
     ))
-    
-    # if param.out_channels==2:
-    #     ratios = [1,3]
-    # else:
-    #     ratios = [1,3,2]
-    # transform_array.append(RandCropByLabelClassesd(
-    #     keys=["image", "label"], 
-    #     label_key="label", 
-    #     spatial_size=param.window_size, 
-    #     ratios=ratios, 
-    #     num_classes=param.out_channels,
-    #     num_samples=1, 
-    #     image_key="image", 
-    #     image_threshold=0,
-    #     ))
 
-    # user can also add other random transforms
-    # transform_array.append(ToTensord(keys=["image", "label"]))
-    # transform_array.append(EnsureTyped(keys=["image", "label"]))
-    
-    # if param.training_rand_rot == 1:
-    #     transform_array.append(
-    #         RandAffined(
-    #             keys=['image', 'label'],
-    #             mode=('bilinear', 'nearest'),
-    #             prob=1.0,
-    #             spatial_size=param.window_size,
-    #             rotate_range=param.training_rand_rot_angle,
-    #             scale_range=param.training_rand_rot_scale)
-    #     )
-        
-    # if param.training_rand_flip == 1:
-    #     transform_array.append(
-    #         RandFlipd(
-    #             keys=['image', 'label'],
-    #             prob=0.5,
-    #             spatial_axis=0 # TODO: Make sure that the axis corresponds to L-R
-    #         )
-    #     )
-
-    # if param.training_rand_shift_intensity > 0.0:
-    #     transform_array.append(
-    #         RandStdShiftIntensityd(
-    #             keys=['image'],
-    #             prob=1.0,
-    #             factors=param.training_rand_shift_intensity
-    #         )
-    #     )
-        
-    # if param.training_rand_contrast == 1:
-    #     transform_array.append(
-    #         RandAdjustContrastd(
-    #             keys=['image'],
-    #             prob=1.0,
-    #             gamma=(0.5,1.5)
-    #         )
-    #     )
-
-    # if param.training_rand_scale > 0.0:
-    #     transform_array.append(
-    #         RandScaleIntensityd(
-    #             keys=['image'],
-    #             prob=1.0,
-    #             factors=param.training_rand_scale
-    #         )
-    #     )
-        
     train_transforms = Compose(transform_array)
     return train_transforms
 
@@ -304,16 +235,16 @@ def loadValidationTransforms(param):
 def loadInferenceTransforms(param, output_path):
     if param.in_channels==2:
         pre_array = [
-            # Two channels
+            # 2-channel input
             LoadImaged(keys=["image_1", "image_2"]),
-            EnsureChannelFirstd(keys=["image_1", "image_2"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
-            ConcatItemsd(keys=["image_1", "image_2"], name="image"), # Mariana: concatenate mag and phase in a two-channel array
+            EnsureChannelFirstd(keys=["image_1", "image_2"]), 
+            ConcatItemsd(keys=["image_1", "image_2"], name="image"),
         ]        
     else:
         pre_array = [
-            # One channel only
+            # 1-channel input
             LoadImaged(keys=["image"]),
-            EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
+            EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'),
         ]
     pre_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
     pre_array.append(Orientationd(keys=["image"], axcodes=param.axcodes))
@@ -330,8 +261,8 @@ def loadInferenceTransforms(param, output_path):
             keys="pred",  # invert the `pred` data field, also support multiple fields
             transform=pre_transforms,
             orig_keys="image",  # get the previously applied pre_transforms information on the `img` data field,
-                              # then invert `pred` based on this information. we can use same info
-                              # for multiple fields, also support different orig_keys for different fields
+                                # then invert `pred` based on this information. we can use same info
+                                # for multiple fields, also support different orig_keys for different fields
             meta_keys="pred_meta_dict",  # key field to save inverted meta data, every item maps to `keys`
             orig_meta_keys="image_meta_dict",  # get the meta data from `img_meta_dict` field when inverting,
                                              # for example, may need the `affine` to invert `Spacingd` transform,
@@ -346,6 +277,7 @@ def loadInferenceTransforms(param, output_path):
         Activationsd(keys="pred", sigmoid=True),
         #AsDiscreted(keys="pred", threshold_values=True),
         AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
+        RemoveSmallObjectsd(keys="pred", min_size=100, connectivity=1, independent_channels=False),
         SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
     ])
     
