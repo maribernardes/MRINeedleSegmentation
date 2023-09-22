@@ -278,7 +278,7 @@ def loadInferenceTransforms(param, output_path):
         Activationsd(keys="pred", sigmoid=True),
         #AsDiscreted(keys="pred", threshold_values=True),
         AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
-        RemoveSmallObjectsd(keys="pred", min_size=param.min_size_object, connectivity=1, independent_channels=False),
+        RemoveSmallObjectsd(keys="pred", min_size=int(param.min_size_object), connectivity=1, independent_channels=False),
         SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
     ])
     
