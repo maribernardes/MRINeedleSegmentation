@@ -92,7 +92,7 @@ class Param():
         self.input_type = self.config.get('common', 'input_type')
         self.label_type = self.config.get('common', 'label_type')
         self.model_file = self.config.get('common', 'model_file')
-
+        
         
 class TrainingParam(Param):
     
@@ -138,8 +138,9 @@ class InferenceParam(Param):
 
     def readParameters(self):
         super().readParameters()
-
         self.inference_device_name = self.config.get('inference', 'inference_device_name')
+        self.min_size_object = self.config.get('inference', 'min_size_object')
+
 
 
 #--------------------------------------------------------------------------------
@@ -277,7 +278,7 @@ def loadInferenceTransforms(param, output_path):
         Activationsd(keys="pred", sigmoid=True),
         #AsDiscreted(keys="pred", threshold_values=True),
         AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
-        RemoveSmallObjectsd(keys="pred", min_size=100, connectivity=1, independent_channels=False),
+        RemoveSmallObjectsd(keys="pred", min_size=param.min_size_object, connectivity=1, independent_channels=False),
         SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
     ])
     
