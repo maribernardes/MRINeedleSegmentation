@@ -29,7 +29,7 @@ def read_image(iminfo, cols, image_dir, num=0, pixel_id=sitk.sitkFloat32):
 ##########################################################
 ## VISUALIZATION
 # Show a pair of magnitude and phase images from given real mag/phase arrays
-def show_mag_phase_arrays(array_m, array_p, title=None, patch=None, margin=0.1, dpi=80, cmap="gray"):
+def show_mag_phase_arrays(array_m, array_p, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", subtitles=['Magnitude', 'Phase']):
     ysize = array_m.shape[1]
     xsize = array_m.shape[2]
     figsize = 2 *(1 + margin) * ysize / dpi, (1 + margin) * xsize / dpi
@@ -41,8 +41,8 @@ def show_mag_phase_arrays(array_m, array_p, title=None, patch=None, margin=0.1, 
         else:
             ax[0].imshow(array_m[z, ...],  interpolation=None, cmap=cmap)
             ax[1].imshow(array_p[z, ...],  interpolation=None, cmap=cmap)
-        ax[0].set_title('Magnitude')
-        ax[1].set_title('Phase')
+        ax[0].set_title(subtitles[0])
+        ax[1].set_title(subtitles[1])
         fig.canvas.toolbar_visible = False
         if title:
             plt.suptitle(title)
@@ -58,9 +58,9 @@ def show_mag_phase_arrays(array_m, array_p, title=None, patch=None, margin=0.1, 
         plt.show()
     interact(callback, z=(0, array_m.shape[0] - 1))
 # Show a pair of magnitude and phase images from given complex array
-def show_complex_array(array_comp, title=None, patch=None, margin=0.1, dpi=80, cmap="gray"):
+def show_complex_array(array_comp, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", subtitles=['Magnitude', 'Phase']):
     (array_m, array_p) = get_mag_phase_arrays(array_comp)
-    show_mag_phase_arrays(array_m, array_p, title, patch)
+    show_mag_phase_arrays(array_m, array_p, title=title, patch=patch, subtitles=subtitles)
 # Show an image given its array (real number)
 def show_array(array, title=None, patch=None, margin=0.1, dpi=80, cmap="gray"):
     ysize = array.shape[1]
@@ -90,10 +90,10 @@ def show_image(img, title=None, patch=None, margin=0.1, dpi=80, cmap="gray"):
     array = sitk.GetArrayFromImage(img)
     show_array(array, title, patch)
 # Show a pair of magnitude and phase sitk images
-def show_mag_phase_images(img_m, img_p, title=None, patch=None, margin=0.1, dpi=80, cmap="gray"):
+def show_mag_phase_images(img_m, img_p, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", subtitles=['Magnitude', 'Phase']):
     array_m = sitk.GetArrayFromImage(img_m)
     array_p = sitk.GetArrayFromImage(img_p)
-    show_mag_phase_arrays(array_m, array_p, title, patch)
+    show_mag_phase_arrays(array_m, array_p, title=title, patch=patch, subtitles=subtitles)
 
 ##########################################################
 ## COMPLEX ARRAY MANIPULATION
@@ -345,7 +345,41 @@ def addBorderItk(sitkImage, border, border_value=0, dim_type='mm'):
     sitkResult.SetDirection(sitkImage.GetDirection())
     sitkResult.SetOrigin(sitkImage.GetOrigin())
     return sitkResult
-# Add padding to an sitkImage (increases the output image size by the padding v alue)
+
+# Crop sitkImage in a give side (decreases the output image size by crop_size in px)
+# while maintaining or specifying a new center.
+# crop_size (int): The size of the crop in the specified direction (number of pixels)
+# side (str): Direction to crop ('top', 'bottom', 'left', 'right').
+def cropItk(sitkImage, crop_size, side='top'):
+    # Get the image's attributes
+    original_size = sitkImage.GetSize()
+    # Calculate new size
+    new_size = list(original_size)
+    if side in ['top', 'bottom']:
+        new_size = [original_size[0], original_size[1]-crop_size, original_size[2]]
+    elif side in ['left', 'right']:
+        new_size = [original_size[0]-crop_size, original_size[1], original_size[2]]
+    else:
+        print('Invalid side option')
+        return None
+    # Create a starting index for the crop
+    start_index = [0,0,0]
+    if side == 'top':
+        start_index[1] = crop_size
+    elif side == 'bottom':
+        start_index[1] = original_size[1] - crop_size
+    elif side == 'left':
+        start_index[0] = crop_size
+    elif side == 'right':
+        start_index[0] = original_size[0] - crop_size
+    else:
+        print('Invalid side option')
+        return None
+    # Create a region of interest for cropping
+    sitkNewImage = sitk.RegionOfInterest(sitkImage, size=new_size, index=start_index)
+    return sitkNewImage
+
+# Add padding to an sitkImage (increases the output image size by the padding value)
 # The padding_value can be a pixel value to fill the padding, 
 # or a tuple (min, max) to fill the padding with random values in the given range (useful to fill image with noise)
 def addPaddingItk(sitkImage, padding, side='top', padding_value=0):
@@ -360,9 +394,12 @@ def addPaddingItk(sitkImage, padding, side='top', padding_value=0):
         new_size[1] += padding
     elif side in ['left', 'right']:
         new_size[0] += padding
+    else:
+        print('Invalid side option')
+        return None
     # Create new image with appropriate size and same spatial information
     sitkNewImage = sitk.Image(new_size, sitkImage.GetPixelID())
-    # Convert the SimpleITK images to a numpy arrays
+    # Convert the SimpleITK images to a numpy array
     image_array = sitk.GetArrayFromImage(sitkImage)
     new_image_array = sitk.GetArrayFromImage(sitkNewImage)
     # Copy the original pixels to the new padded image and complete the padding
@@ -375,7 +412,7 @@ def addPaddingItk(sitkImage, padding, side='top', padding_value=0):
             newPixel = np.random.randint(padding_value[0], padding_value[1], size=(new_image_array.shape[0], padding, new_image_array.shape[2]))        
     else:
         print('Invalid padding_value')
-        return
+        return None
     if side == 'top':
         new_image_array[:, padding:, :] = image_array
         new_image_array[:, :padding, :] = newPixel
@@ -464,7 +501,6 @@ def interpolateArtifacts(artifact_json_path, angle_list, target_angle=None):
     delta2 = (angle2-target_angle)
     delta = angle2-angle1
     w = [delta2/delta, delta1/delta]
-    print(w)
     # Get needle artifact template        
     with open(artifact_json_path) as file_artifact:
         list_artifact = json.load(file_artifact)
@@ -519,14 +555,17 @@ def interpolateArtifacts(artifact_json_path, angle_list, target_angle=None):
     return (interpolated_m, interpolated_p, rotatedBase, rotatedTip, target_angle)
 # Create Needle Labelmap: takes a given image and draws a white line at the provided base and tip physical positions
 # If line width is omitted, use 1px width
-def createLine(sitkReference, base, tip, radius_mm=1.0, defaultPixelValue=255):
+# If drawOver is True, the cilinder is added on top of sitkReference, if False the cilinder is added to an empty image
+def createLine(sitkReference, base, tip, radius_mm=1.0, drawOver=False, defaultPixelValue=255):
     # Get the image size and dimensions
     spacing = sitkReference.GetSpacing()
     size = sitkReference.GetSize()
     width, height, depth = size[0], size[1], size[2]
     # Create a numpy array from the image
-    # image_array = sitk.GetArrayFromImage(sitkImage)
-    image_array = np.zeros((depth, height, width))
+    if drawOver is True:
+        image_array = sitk.GetArrayFromImage(sitkReference)
+    else:
+        image_array = np.zeros((depth, height, width))
     # Convert start and end points to pixel coordinates
     baseIndex = sitkReference.TransformPhysicalPointToContinuousIndex(base)
     tipIndex = sitkReference.TransformPhysicalPointToContinuousIndex(tip)
@@ -563,7 +602,8 @@ def createLine(sitkReference, base, tip, radius_mm=1.0, defaultPixelValue=255):
     return sitkResult
 
 # Creates an image with same spatial information of given reference and draws a sphere at the provided center with given radius
-def createSphere(sitkReference, center_phys, radius_mm, defaultPixelValue=255):
+# If drawOver is True, the sphere is added on top of sitkReference, if False the sphere is added to an empty image
+def createSphere(sitkReference, center_phys, radius_mm, drawOver=False, defaultPixelValue=255):
     # Get spacial information from reference image
     spacing = sitkReference.GetSpacing()
     size = sitkReference.GetSize()
@@ -572,7 +612,10 @@ def createSphere(sitkReference, center_phys, radius_mm, defaultPixelValue=255):
     center_index = sitkReference.TransformPhysicalPointToContinuousIndex(center_phys)
     radius = radius_mm / spacing[0]
     # Fill the pixels for the sphere
-    array_sphere = np.zeros((depth, height, width))
+    if drawOver is True:
+        array_sphere = sitk.GetArrayFromImage(sitkReference)
+    else:
+        array_sphere = np.zeros((depth, height, width))
     z, y, x = np.ogrid[:array_sphere.shape[0], :array_sphere.shape[1], :array_sphere.shape[2]]
     array_sphere[(x - center_index[0])**2 + (y - center_index[1])**2 + (z - center_index[2])**2 <= radius**2] = defaultPixelValue
     # Create a new SimpleITK image from the array
@@ -585,13 +628,17 @@ def createSphere(sitkReference, center_phys, radius_mm, defaultPixelValue=255):
 
 # Creates an image with same spatial information of given reference and draws a white cilinder at the provided center
 # with given radius and height values
-def createCilinder(sitkReference, center_phys, radius_mm, height_mm, defaultPixelValue=255):
+# If drawOver is True, the cilinder is added on top of sitkReference, if False the cilinder is added to an empty image
+def createCilinder(sitkReference, center_phys, radius_mm, height_mm, drawOver=False, defaultPixelValue=255):
     # Get spacial information from reference image
     spacing = sitkReference.GetSpacing()
     size = sitkReference.GetSize()
     width, height, depth = size[0], size[1], size[2]
     # Create numpy array from the image
-    arr = np.zeros((depth, height, width))
+    if drawOver is True:
+        arr = sitk.GetArrayFromImage(sitkReference)
+    else:
+        arr = np.zeros((depth, height, width))
     # Convert physical center to index
     center_index = sitkReference.TransformPhysicalPointToContinuousIndex(center_phys)
     # Convert radius and height from millimeters to pixels
@@ -613,3 +660,43 @@ def createCilinder(sitkReference, center_phys, radius_mm, height_mm, defaultPixe
     sitkResult.SetSpacing(sitkReference.GetSpacing())
     sitkResult.SetDirection(sitkReference.GetDirection())
     return sitkResult
+
+# Given a  a line start_point and end_point, find the line insersection point with the image boundary
+def lineIntersectionWithBoundaries(sitkImage, start_point, end_point, num_points=100):
+    # Create a set of equidistant points along the line segment
+    t_values = np.linspace(0, 1, num_points)
+    points = [tuple(start_point[i] + t * (end_point[i] - start_point[i]) for i in range(3)) for t in t_values]
+    # Initialize 
+    intersection_point = None
+    for point in points:
+        # Transform the point from spatial (physical) to index coordinates
+        index = sitkImage.TransformPhysicalPointToIndex(point)
+        # Check if the point is within the volume's bounds in index coordinates
+        if all(0 <= index[i] < sitkImage.GetSize()[i] for i in range(3)):
+            intersection_point = sitkImage.TransformIndexToPhysicalPoint(index)
+        else:
+            # This point is outside of the image volume
+            break
+    # Return the last point inside the image volume
+    return intersection_point
+
+# Given a line start_point and end_point, check if all points are inside a given mask volume
+def isLineInsideMask(sitkMask, start_point, end_point, foreground_value=0, num_points=100):
+    # Create a set of equidistant points along the line segment
+    t_values = np.linspace(0, 1, num_points)
+    points = [tuple(start_point[i] + t * (end_point[i] - start_point[i]) for i in range(3)) for t in t_values]
+    # Loop all the points
+    for point in points:
+        # Transform the point from spatial (physical) to index coordinates
+        index = sitkMask.TransformPhysicalPointToIndex(point)
+        # Check if the point is within the volume's bounds in index coordinates
+        if all(0 <= index[i] < sitkMask.GetSize()[i] for i in range(3)):
+            # Check mask value
+            if sitkMask[index]!=foreground_value:
+                # This point is outside the mask
+                return False
+        else:
+            # This point is outside of the image volume
+            return False
+    # All points inside the mask
+    return True
