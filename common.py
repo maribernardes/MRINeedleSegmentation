@@ -21,6 +21,7 @@ from monai.transforms import (
     RandCropByLabelClassesd,
     RandCropByPosNegLabeld,
     RandAdjustContrastd,
+    RandGaussianNoised,
     RandFlipd,
     RandZoomd,
     RandScaleIntensityd,
@@ -106,6 +107,7 @@ class TrainingParam(Param):
         self.training_name = self.config.get('training', 'training_name')
         self.max_epochs = int(self.config.get('training', 'max_epochs', fallback='200'))
         self.training_device_name = self.config.get('training', 'training_device_name')
+        self.training_rand_noise = float(self.config.get('training', 'random_noise', fallback='0.0'))
         self.training_rand_flip = int(self.config.get('training', 'random_flip', fallback='0'))
         self.training_rand_zoom = float(self.config.get('training', 'random_zoom', fallback='0.0'))
 
@@ -153,15 +155,22 @@ def loadTrainingTransforms(param):
         # Two channels input
         transform_array = [
             LoadImaged(keys=["image_1", "image_2", "label"]),
-            EnsureChannelFirstd(keys=["image_1", "image_2", "label"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
-            ConcatItemsd(keys=["image_1", "image_2"], name="image")
+            EnsureChannelFirstd(keys=["image_1", "image_2", "label"]), 
+            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True)
         ]
+        if param.training_rand_noise == 1:
+            transform_array.append(RandGaussianNoised(keys=["image_1"], prob=1, mean=0, std=0.1))
+            transform_array.append(RandGaussianNoised(keys=["image_2"], prob=1, mean=0, std=0.05))
+        transform_array.append(ConcatItemsd(keys=["image_1", "image_2"], name="image"))
     else:
         # One channel input
         transform_array = [            
             LoadImaged(keys=["image", "label"]),
-            EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
+            EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),
+            ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
+        if param.training_rand_noise == 1:
+            transform_array.append(RandGaussianNoised(keys=["image"], prob=1, mean=0, std=0.1))
 
     # Intensity adjustment
     if (param.input_type == 'R') or (param.input_type == 'I'):
