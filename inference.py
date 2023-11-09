@@ -22,8 +22,6 @@ from configparser import ConfigParser
 
 from common import *
 
-
-
 def run(param, output_path, val_files, model_file):
   device = torch.device(param.inference_device_name)
   
@@ -31,7 +29,7 @@ def run(param, output_path, val_files, model_file):
   (pre_transforms, post_transforms) =  loadInferenceTransforms(param, output_path)
   val_ds = CacheDataset(data=val_files, transform=pre_transforms, cache_rate=1.0, num_workers=4)
   val_loader = DataLoader(val_ds, batch_size=1, num_workers=4)
-
+  
   #--------------------------------------------------------------------------------
   # Model
   #--------------------------------------------------------------------------------
@@ -46,12 +44,8 @@ def run(param, output_path, val_files, model_file):
   #--------------------------------------------------------------------------------
   print('Evaluate model')
   model.eval()
-  
-  with torch.no_grad():
-    #saver = NiftiSaver(output_dir=output_path, separate_folder=False)
-    metric_sum = 0.0
-    metric_count = 0
 
+  with torch.no_grad():
     for i, val_data in enumerate(val_loader):
       roi_size = param.window_size
       sw_batch_size = 4
@@ -60,9 +54,7 @@ def run(param, output_path, val_files, model_file):
       val_data["pred"] = sliding_window_inference(val_inputs, roi_size, sw_batch_size, model)
       val_data = [post_transforms(i) for i in decollate_batch(val_data)]
       val_outputs = from_engine(["pred"])(val_data)
-      #val_output_label = torch.argmax(val_outputs, dim=1, keepdim=True)
-      #saver.save_batch(val_output_label, val_data['image_meta_dict'])            
-
+      
 def main(argv):
   try:
     parser = argparse.ArgumentParser(description="Apply a saved DL model for segmentation.")

@@ -22,6 +22,7 @@ from monai.transforms import (
     RandCropByPosNegLabeld,
     RandAdjustContrastd,
     RandGaussianNoised,
+    RandRicianNoised,
     RandFlipd,
     RandZoomd,
     RandScaleIntensityd,
@@ -36,7 +37,7 @@ from monai.transforms import (
 )
 
 from monai.utils import first, set_determinism
-from monai.networks.nets import UNet
+from monai.networks.nets import UNet, BasicUNetPlusPlus
 from monai.networks.layers import Norm
 
 import numpy as np
@@ -45,7 +46,7 @@ import os
 import shutil
 
 from monai.data import CacheDataset, DataLoader, Dataset
-
+from sitkIO import *
 
 #--------------------------------------------------------------------------------
 # Load configurations
@@ -120,7 +121,6 @@ class TestParam(Param):
         super().readParameters()
 
         self.test_device_name = self.config.get('test', 'test_device_name')
-
         
 class TransferParam(TrainingParam):
     def __init__(self, filename='config.ini'):
@@ -159,8 +159,8 @@ def loadTrainingTransforms(param):
             ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True)
         ]
         if param.training_rand_noise == 1:
-            transform_array.append(RandGaussianNoised(keys=["image_1"], prob=1, mean=0, std=0.1))
-            transform_array.append(RandGaussianNoised(keys=["image_2"], prob=1, mean=0, std=0.05))
+            transform_array.append(RandRicianNoised(keys=["image_1"], prob=1, mean=0, std=0.1))
+            transform_array.append(RandGaussianNoised(keys=["image_2"], prob=1, mean=0, std=0.08))
         transform_array.append(ConcatItemsd(keys=["image_1", "image_2"], name="image"))
     else:
         # One channel input
@@ -212,25 +212,26 @@ def loadTrainingTransforms(param):
     train_transforms = Compose(transform_array)
     return train_transforms
 
+# Old version:
 def loadValidationTransforms(param):    
     # Load images
     if param.in_channels==2:
-        # Two channels input
+        # 2-channel input
         val_array = [
             LoadImaged(keys=["image_1", "image_2", "label"]),
             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
             ConcatItemsd(keys=["image_1", "image_2"], name="image")
         ]
     else:
-        # One channel input
+        # 1-channel input
         val_array = [            
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
         ]
-
     # Intensity adjustment
     if (param.input_type == 'R') or (param.input_type == 'I'):
         val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
+        
     val_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
 
     # Spatial adjustments
@@ -242,57 +243,73 @@ def loadValidationTransforms(param):
     val_transforms = Compose(val_array)
     return val_transforms
 
+# def loadValidationTransforms(param):    
+#     # Load images
+#     if param.in_channels==2:
+#         # 2-channel input
+#         val_array = [
+#             LoadImaged(keys=["image_1", "image_2", "label"]),
+#             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]),
+#             ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True),
+#             ConcatItemsd(keys=["image_1", "image_2"], name="image")
+#         ]
+#     else:
+#         # 1-channel input
+#         val_array = [            
+#             LoadImaged(keys=["image", "label"]),
+#             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),
+#             ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
+#         ]
+#     # Intensity adjustment (Real/Img only)
+#     if (param.input_type == 'R') or (param.input_type == 'I'):
+#         val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
+#     # Spatial adjustment
+#     val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
+#     val_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
+#     val_transforms = Compose(val_array)
+#     return val_transforms
+    
 def loadInferenceTransforms(param, output_path):
+ # Define pre-inference transforms
     if param.in_channels==2:
+        # 2-channel input
         pre_array = [
-            # 2-channel input
             LoadImaged(keys=["image_1", "image_2"]),
             EnsureChannelFirstd(keys=["image_1", "image_2"]), 
+            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True),
             ConcatItemsd(keys=["image_1", "image_2"], name="image"),
         ]        
     else:
+        # 1-channel input
         pre_array = [
-            # 1-channel input
             LoadImaged(keys=["image"]),
             EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'),
+            ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
-    pre_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
     pre_array.append(Orientationd(keys=["image"], axcodes=param.axcodes))
     pre_array.append(Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")))
-    # pre_array.append(CropForegroundd(keys=["image"], source_key="image"))
-        #ToTensord(keys=["image"]),
-    # pre_array.append(EnsureTyped(keys=["image"]))
     pre_transforms = Compose(pre_array)
-
-    # define post transforms
+    
+    # Define post-inference transforms
     post_transforms = Compose([
-        # EnsureTyped(keys="pred"),
-        Invertd(
-            keys="pred",  # invert the `pred` data field, also support multiple fields
-            transform=pre_transforms,
-            orig_keys="image",  # get the previously applied pre_transforms information on the `img` data field,
-                                # then invert `pred` based on this information. we can use same info
-                                # for multiple fields, also support different orig_keys for different fields
-            meta_keys="pred_meta_dict",  # key field to save inverted meta data, every item maps to `keys`
-            orig_meta_keys="image_meta_dict",  # get the meta data from `img_meta_dict` field when inverting,
-                                             # for example, may need the `affine` to invert `Spacingd` transform,
-                                             # multiple fields can use the same meta data to invert
-            meta_key_postfix="meta_dict",  # if `meta_keys=None`, use "{keys}_{meta_key_postfix}" as the meta key,
-                                           # if `orig_meta_keys=None`, use "{orig_keys}_{meta_key_postfix}",
-                                           # otherwise, no need this arg during inverting
-            nearest_interp=False,  # don't change the interpolation mode to "nearest" when inverting transforms
-                                   # to ensure a smooth output, then execute `AsDiscreted` transform
-            to_tensor=True,  # convert to PyTorch Tensor after inverting
-        ),
-        Activationsd(keys="pred", sigmoid=True),
-        #AsDiscreted(keys="pred", threshold_values=True),
-        AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
-        RemoveSmallObjectsd(keys="pred", min_size=int(param.min_size_object), connectivity=1, independent_channels=False),
-        SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
-    ])
+      Invertd(
+        keys="pred",
+        transform=pre_transforms,
+        orig_keys="image", 
+        meta_keys="pred_meta_dict", 
+        orig_meta_keys="image_meta_dict",  
+        meta_key_postfix="meta_dict",  
+        nearest_interp=False,
+        to_tensor=True,
+      ),
+      Activationsd(keys="pred", sigmoid=True),
+      AsDiscreted(keys="pred", argmax=True, num_classes=3),
+      # RemoveSmallObjectsd(keys="pred", min_size=int(min_size_obj), connectivity=1, independent_channels=True),
+      # KeepLargestConnectedComponentd(keys="pred", independent=True),
+      SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
+    ])      
     
     return (pre_transforms, post_transforms)
-
 
 #--------------------------------------------------------------------------------
 # Generate a file list
@@ -401,20 +418,18 @@ def generateFileList(param, input_path):
 def setupModel(param):
 
     model_unet = UNet(
-        spatial_dims=3, # Mariana: dimensions=3 was deprecated
+        spatial_dims=3, 
         in_channels=param.in_channels,
         out_channels=param.out_channels,
-        # channels=(16, 32, 64, 128, 256),  # Mariana: Reduce the number of channels to fit the smaller spatial dimensions
-        # strides=(2, 2, 2, 2),             # Mariana: Adjust the strides based on the desired downsampling (keep depth untouched)
-        channels=[16, 32, 64, 128], 
-        strides=[(1, 2, 2), (1, 2, 2), (1, 1, 1)], 
+        # channels=[16, 32, 64, 128, 256],                 # Mariana: Test Unet 5 layers
+        # strides=[(1,2,2), (1,2,2), (1,2,2), (1,2,2)],    # Mariana: Test Unet 5 layers
+        channels=[16, 32, 64, 128],                 # This is the working one - Unet 4 layers
+        strides=[(1, 2, 2), (1, 2, 2), (1, 1, 1)],  # This is the working one - Unet 4 layers
         num_res_units=2,
         norm=Norm.BATCH,
     )
     
     post_pred = AsDiscrete(argmax=True, to_onehot=param.out_channels, n_classes=param.out_channels)
     post_label = AsDiscrete(to_onehot=param.out_channels, n_classes=param.out_channels)
-    #post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=param.out_channels)  # Mariana: Deprecated error
-    #post_label = AsDiscrete(to_onehot=True, n_classes=param.out_channels)              # Mariana: Deprecated error
-
+    
     return (model_unet, post_pred, post_label)
