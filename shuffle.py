@@ -21,11 +21,12 @@ def create_folder(folder_path, clean_files=False):
                 if os.path.isfile(file_path):
                     os.remove(file_path)
 
-def shuffle_dataset(src_dir, dst_dir, training_split, dir_prefix, file_prefix):
+def shuffle_dataset(src_dir, dst_dir, training_split, first_index, dir_prefix, file_prefix):
 
   # Randomly shuffle the cases
   random.seed()
-  cases = list(range(1,sum(training_split)+1))
+  cases = list(range(first_index, first_index+sum(training_split)))
+  print(cases)
   random.shuffle(cases)
         
   # Clean the destination folders
@@ -48,7 +49,6 @@ def shuffle_dataset(src_dir, dst_dir, training_split, dir_prefix, file_prefix):
     start_index = end_index
     end_index = start_index + training_split[group]
     for i in range(start_index, end_index):
-      print(i)
       # images files
       filename1 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_M.nii.gz'
       filename2 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_P.nii.gz'
@@ -82,6 +82,7 @@ def main(argv):
 
   dir_prefix = ['train', 'val', 'test']
   training_split = [10, 6, 8]
+  first_index = 1
 
   args = []
   try:
@@ -98,7 +99,8 @@ def main(argv):
                         help='Number of validation images (default: %d)' % training_split[1])
     parser.add_argument('-s', dest='nTesting', default=training_split[2],
                         help='Number of testing images (default: %d)' % training_split[2])
-        
+    parser.add_argument('-i', dest='firstIndex', default=first_index,
+                        help='Initial image index (default: %d)' % first_index)        
     args = parser.parse_args(argv)
         
   except Exception as e:
@@ -110,11 +112,12 @@ def main(argv):
   training_split[0]  = int(args.nTraining)
   training_split[1]  = int(args.nValidation)
   training_split[2]  = int(args.nTesting)
+  first_index = int(args.firstIndex)
   file_prefix = args.prefix
   
   # Make the destination directory, if it does not exists.
   os.makedirs(dst_dir, exist_ok=True)
-  shuffle_dataset(src_dir, dst_dir, training_split, dir_prefix, file_prefix)
+  shuffle_dataset(src_dir, dst_dir, training_split, first_index, dir_prefix, file_prefix)
 
   
 if __name__ == "__main__":
