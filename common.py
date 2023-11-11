@@ -7,7 +7,6 @@ from monai.transforms import (
     AdjustContrastd,
     AsDiscrete,
     AsDiscreted,
-    # AddChanneld, # Mariana: deprecated. Replace with EnsureChannelFirst
     Compose,
     ConcatItemsd,
     CropForegroundd,
@@ -154,7 +153,7 @@ def loadTrainingTransforms(param):
     if param.in_channels==2:
         # Two channels input
         transform_array = [
-            LoadImaged(keys=["image_1", "image_2", "label"]),
+            LoadImaged(keys=["image_1", "image_2", "label"], image_only=False),
             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]), 
             ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True)
         ]
@@ -165,7 +164,7 @@ def loadTrainingTransforms(param):
     else:
         # One channel input
         transform_array = [            
-            LoadImaged(keys=["image", "label"]),
+            LoadImaged(keys=["image", "label"], image_only=False),
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),
             ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
@@ -212,69 +211,38 @@ def loadTrainingTransforms(param):
     train_transforms = Compose(transform_array)
     return train_transforms
 
-# Old version:
 def loadValidationTransforms(param):    
     # Load images
     if param.in_channels==2:
         # 2-channel input
         val_array = [
-            LoadImaged(keys=["image_1", "image_2", "label"]),
-            EnsureChannelFirstd(keys=["image_1", "image_2", "label"]), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
+            LoadImaged(keys=["image_1", "image_2", "label"], image_only=False),
+            EnsureChannelFirstd(keys=["image_1", "image_2", "label"]),
+            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True),
             ConcatItemsd(keys=["image_1", "image_2"], name="image")
         ]
     else:
         # 1-channel input
         val_array = [            
-            LoadImaged(keys=["image", "label"]),
-            EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), # Mariana: AddChanneld(keys=["image", "label"]) deprecated, use EnsureChannelFirst instead
+            LoadImaged(keys=["image", "label"], image_only=False),
+            EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),
+            ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
-    # Intensity adjustment
+    # Intensity adjustment (Real/Img only)
     if (param.input_type == 'R') or (param.input_type == 'I'):
         val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
-        
-    val_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
-
-    # Spatial adjustments
+    # Spatial adjustment
     val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
     val_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
-    # val_array.append(CropForegroundd(keys=["image", "label"], source_key="image"))
-    # val_array.append(ToTensord(keys=["image", "label"]))
-    # val_array.append(EnsureTyped(keys=["image", "label"]))
     val_transforms = Compose(val_array)
     return val_transforms
-
-# def loadValidationTransforms(param):    
-#     # Load images
-#     if param.in_channels==2:
-#         # 2-channel input
-#         val_array = [
-#             LoadImaged(keys=["image_1", "image_2", "label"]),
-#             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]),
-#             ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True),
-#             ConcatItemsd(keys=["image_1", "image_2"], name="image")
-#         ]
-#     else:
-#         # 1-channel input
-#         val_array = [            
-#             LoadImaged(keys=["image", "label"]),
-#             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),
-#             ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
-#         ]
-#     # Intensity adjustment (Real/Img only)
-#     if (param.input_type == 'R') or (param.input_type == 'I'):
-#         val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
-#     # Spatial adjustment
-#     val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
-#     val_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
-#     val_transforms = Compose(val_array)
-#     return val_transforms
     
 def loadInferenceTransforms(param, output_path):
  # Define pre-inference transforms
     if param.in_channels==2:
         # 2-channel input
         pre_array = [
-            LoadImaged(keys=["image_1", "image_2"]),
+            LoadImaged(keys=["image_1", "image_2"], image_only=False),
             EnsureChannelFirstd(keys=["image_1", "image_2"]), 
             ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True),
             ConcatItemsd(keys=["image_1", "image_2"], name="image"),
@@ -282,7 +250,7 @@ def loadInferenceTransforms(param, output_path):
     else:
         # 1-channel input
         pre_array = [
-            LoadImaged(keys=["image"]),
+            LoadImaged(keys=["image"], image_only=False),
             EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'),
             ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
@@ -302,8 +270,7 @@ def loadInferenceTransforms(param, output_path):
         nearest_interp=False,
         to_tensor=True,
       ),
-      Activationsd(keys="pred", sigmoid=True),
-      AsDiscreted(keys="pred", argmax=True, num_classes=3),
+      AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
       # RemoveSmallObjectsd(keys="pred", min_size=int(min_size_obj), connectivity=1, independent_channels=True),
       # KeepLargestConnectedComponentd(keys="pred", independent=True),
       SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
@@ -429,7 +396,7 @@ def setupModel(param):
         norm=Norm.BATCH,
     )
     
-    post_pred = AsDiscrete(argmax=True, to_onehot=param.out_channels, n_classes=param.out_channels)
-    post_label = AsDiscrete(to_onehot=param.out_channels, n_classes=param.out_channels)
+    post_pred = AsDiscrete(argmax=True, n_classes=param.out_channels)
+    post_label = AsDiscrete(n_classes=param.out_channels)
     
     return (model_unet, post_pred, post_label)
