@@ -174,7 +174,9 @@ def loadTrainingTransforms(param):
     # Intensity adjustment
     if (param.input_type == 'R') or (param.input_type == 'I'):
         transform_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
-    transform_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
+    
+    # Is this needed again?!?
+    # transform_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
 
     # Spatial adjustments
     transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
