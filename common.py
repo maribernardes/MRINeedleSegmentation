@@ -390,10 +390,9 @@ def setupModel(param):
         spatial_dims=3, 
         in_channels=param.in_channels,
         out_channels=param.out_channels,
-        # channels=[16, 32, 64, 128, 256],                 # Mariana: Test Unet 5 layers
-        # strides=[(1,2,2), (1,2,2), (1,2,2), (1,2,2)],    # Mariana: Test Unet 5 layers
-        channels=[16, 32, 64, 128],                 # This is the working one - Unet 4 layers
-        strides=[(1, 2, 2), (1, 2, 2), (1, 1, 1)],  # This is the working one - Unet 4 layers
+        channels=[16, 32, 64, 128],                 # This is a Unet with 4 layers
+        # strides=[(1, 2, 2), (1, 2, 2), (1, 1, 1)],  # This is a Unet with 4 layers
+        strides=[(2, 2, 1), (2, 2, 1), (1, 1, 1)],  # This is a Unet with 4 layers
         num_res_units=2,
         norm=Norm.BATCH,
     )
