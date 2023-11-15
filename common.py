@@ -175,9 +175,6 @@ def loadTrainingTransforms(param):
     if (param.input_type == 'R') or (param.input_type == 'I'):
         transform_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
     
-    # Is this needed again?!?
-    # transform_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
-
     # Spatial adjustments
     transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
     transform_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
@@ -391,7 +388,6 @@ def setupModel(param):
         in_channels=param.in_channels,
         out_channels=param.out_channels,
         channels=[16, 32, 64, 128],                 # This is a Unet with 4 layers
-        # strides=[(1, 2, 2), (1, 2, 2), (1, 1, 1)],  # This is a Unet with 4 layers
         strides=[(2, 2, 1), (2, 2, 1), (1, 1, 1)],  # This is a Unet with 4 layers
         num_res_units=2,
         norm=Norm.BATCH,

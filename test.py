@@ -222,7 +222,7 @@ def run(param, output_path, test_files, model_file):
     with torch.no_grad():
         err_2d_list = []
         err_3d_list = []
-        err_angle_list = []
+        err_ang_list = []
         false_negatives = 0
         false_positives = 0
         # Batch processing
@@ -256,6 +256,7 @@ def run(param, output_path, test_files, model_file):
                     err_ang = angle_between_vectors(dir_pred, dir_label)
                     err_3d_list.append(err_3d)
                     err_2d_list.append(err_2d)
+                    err_ang_list.append(err_ang)
                     print('Image #%i: Err 3D = %f' %(N, err_3d))
                     print('Image #%i: Err 2D = %f' %(N, err_2d))
                 elif (tip_pred is None):
@@ -267,16 +268,25 @@ def run(param, output_path, test_files, model_file):
         
         # Calculate mean and variance
         distances_3d = torch.stack(err_3d_list)
-        distances_2d = torch.stack(err_2d_list)
-        mean_distance_3d = distances_3d.mean().item()
         variance_distance_3d = distances_3d.var().item()
+        mean_distance_3d = distances_3d.mean().item()
+        
+        distances_2d = torch.stack(err_2d_list)
         mean_distance_2d = distances_2d.mean().item()
         variance_distance_2d = distances_2d.var().item()
+        
+        angles = torch.stack(err_ang_list)
+        mean_angles = angles.mean().item()
+        variance_angles = angles.var().item()
 
         print ("===== FP/FN =====")
         print("False Neg = %i/%i" %(false_negatives, N))
         print("False Pos = %i/%i" %(false_positives, N))
-                
+
+        print ("===== Angle between needle directions =====")
+        print("Mean Angle = %f" %(mean_angles))
+        print("Var Angle = %f" %(variance_angles))
+
         print ("===== Mean Euclidean Distance (from label images) =====")
         print("Mean 3D Err = %f" %(mean_distance_3d))
         print("Var 3D Err = %f" %(variance_distance_3d))
