@@ -29,7 +29,7 @@ def read_image(iminfo, cols, image_dir, num=0, pixel_id=sitk.sitkFloat32):
 ##########################################################
 ## VISUALIZATION
 # Show a pair of magnitude and phase images from given real mag/phase arrays
-def show_mag_phase_arrays(array_m, array_p, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", subtitles=['Magnitude', 'Phase']):
+def show_mag_phase_arrays(array_m, array_p, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", subtitles=['Magnitude', 'Phase'], toolbar_visible=False):
     ysize = array_m.shape[1]
     xsize = array_m.shape[2]
     figsize = 2 *(1 + margin) * ysize / dpi, (1 + margin) * xsize / dpi
@@ -43,7 +43,7 @@ def show_mag_phase_arrays(array_m, array_p, title=None, patch=None, margin=0.1, 
             ax[1].imshow(array_p[z, ...],  interpolation=None, cmap=cmap)
         ax[0].set_title(subtitles[0])
         ax[1].set_title(subtitles[1])
-        fig.canvas.toolbar_visible = False
+        fig.canvas.toolbar_visible = toolbar_visible
         if title:
             plt.suptitle(title)
             fig.canvas.manager.set_window_title(title)
@@ -58,11 +58,11 @@ def show_mag_phase_arrays(array_m, array_p, title=None, patch=None, margin=0.1, 
         plt.show()
     interact(callback, z=(0, array_m.shape[0] - 1))
 # Show a pair of magnitude and phase images from given complex array
-def show_complex_array(array_comp, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", subtitles=['Magnitude', 'Phase']):
+def show_complex_array(array_comp, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", subtitles=['Magnitude', 'Phase'], toolbar_visible=False):
     (array_m, array_p) = get_mag_phase_arrays(array_comp)
-    show_mag_phase_arrays(array_m, array_p, title=title, patch=patch, subtitles=subtitles)
+    show_mag_phase_arrays(array_m, array_p, title=title, patch=patch, subtitles=subtitles, toolbar_visible=toolbar_visible)
 # Show an image given its array (real number)
-def show_array(array, title=None, patch=None, margin=0.1, dpi=80, cmap="gray"):
+def show_array(array, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", toolbar_visible=False):
     ysize = array.shape[1]
     xsize = array.shape[2]
     figsize = (1 + margin) * ysize / dpi, (1 + margin) * xsize / dpi
@@ -73,7 +73,7 @@ def show_array(array, title=None, patch=None, margin=0.1, dpi=80, cmap="gray"):
             ax.imshow(array,  interpolation=None, cmap=cmap)
         else:
             ax.imshow(array[z, ...],  interpolation=None, cmap=cmap)
-        fig.canvas.toolbar_visible = False
+        fig.canvas.toolbar_visible = toolbar_visible
         if title:
             plt.suptitle(title)
             fig.canvas.manager.set_window_title(title)
@@ -86,14 +86,14 @@ def show_array(array, title=None, patch=None, margin=0.1, dpi=80, cmap="gray"):
         plt.show()
     interact(callback, z=(0, array.shape[0] - 1))
 # Show an sitk image
-def show_image(img, title=None, patch=None, margin=0.1, dpi=80, cmap="gray"):
+def show_image(img, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", toolbar_visible=False):
     array = sitk.GetArrayFromImage(img)
-    show_array(array, title, patch)
+    show_array(array, title, patch, toolbar_visible=toolbar_visible)
 # Show a pair of magnitude and phase sitk images
-def show_mag_phase_images(img_m, img_p, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", subtitles=['Magnitude', 'Phase']):
+def show_mag_phase_images(img_m, img_p, title=None, patch=None, margin=0.1, dpi=80, cmap="gray", subtitles=['Magnitude', 'Phase'], toolbar_visible=False):
     array_m = sitk.GetArrayFromImage(img_m)
     array_p = sitk.GetArrayFromImage(img_p)
-    show_mag_phase_arrays(array_m, array_p, title=title, patch=patch, subtitles=subtitles)
+    show_mag_phase_arrays(array_m, array_p, title=title, patch=patch, subtitles=subtitles, toolbar_visible=toolbar_visible)
 
 ##########################################################
 ## COMPLEX ARRAY MANIPULATION
