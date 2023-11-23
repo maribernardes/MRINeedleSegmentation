@@ -55,6 +55,14 @@ def get_physical_coordinates(name, dataset_image_list, cols):
 def unit_vector(vector):
     return vector / np.linalg.norm(vector)
 
+# Calculate the projection of a vector onto a plane (n = normal vector)
+def vector_projection_onto_plane(v, n):
+    # Calculate the dot product of v and n
+    dot_product = np.dot(v, n)
+    # Calculate the projection of v onto the plane
+    projection = v - dot_product * n
+    return unit_vector(projection)
+
 # Returns the signed angle between two vectors
 # Source: https://stackoverflow.com/a/70789545/19347752
 # Based in: https://people.eecs.berkeley.edu/%7Ewkahan/MathH110/Cross.pdf (page 15)
@@ -65,11 +73,11 @@ def angle_between_vectors(v1, v2):
     x = v1_u + v2_u
     a0 = 2 * np.arctan(np.linalg.norm(y) / np.linalg.norm(x))
     if (not np.signbit(a0)) or np.signbit(np.pi - a0):
-        return np.rad2deg(a0)
+        return torch.tensor(np.rad2deg(a0))
     elif np.signbit(a0):
-        return 0.0
+        return torch.tensor(0.0)
     else:
-        return np.rad2deg(np.pi)
+        return torch.tensor(np.rad2deg(np.pi))
 
 # Calculate the 3D euclidean distance between two points with coordinates in tensors = torch.tensor(L, P, S)
 # Where L = right-left, P = anterior-posterior and S = inferior-superior
@@ -127,7 +135,7 @@ def get_direction(sitk_output, label_value):
         i_axis = obb_size.index(max(obb_size))
         obb_vec = unit_vector(labels_obb_dir[index_largest][3*i_axis:(3*i_axis+3)]) # Choose the vector of the longer axis
         obb_vec = obb_vec*math.copysign(1, obb_vec[2]) # Always choose dir that is positive in the direction of S
-        return unit_vector(obb_vec)
+        return (unit_vector(obb_vec), obb_size[i_axis])
     else:
         return None
 
@@ -201,9 +209,14 @@ def run(param, output_path, test_files, model_file):
     # Convert to sitk for calculating metric
     sitk_transform = PushSitkImage(resample=False, output_dtype=np.uint16, print_log=False)
 
+    # My fix
+    post_pred = AsDiscrete(argmax=True, n_classes=param.out_channels)
+    post_label = AsDiscrete(n_classes=param.out_channels)
+    
     # Compose desired transforms
     post_pred_arr = [post_pred]
     post_label_arr = [post_label]
+    
     if (output_path is not None):
         post_pred_arr.append(save_transform)
         post_label_arr.append(save_transform)
@@ -220,11 +233,21 @@ def run(param, output_path, test_files, model_file):
                 
     print("Start evaluating...")
     with torch.no_grad():
+        # For calculating tip error
         err_2d_list = []
         err_3d_list = []
-        err_ang_list = []
-        false_negatives = 0
-        false_positives = 0
+        false_negatives_tip = 0
+        false_positives_tip = 0
+        
+        # For calculating shaft error
+        n_COR = np.array([0,1,0])
+        n_SAG = np.array([1,0,0])
+        false_negatives_shaft = 0
+        false_positives_shaft = 0
+        err_ang_3d_list = []
+        err_ang_cor_list = []
+        err_ang_sag_list = []
+        
         # Batch processing
         N = 0
         for test_data in test_loader:
@@ -244,28 +267,52 @@ def run(param, output_path, test_files, model_file):
                 tip_pred = get_centroid(sitk_pred[k], 2)
                 tip_label = get_centroid(sitk_label[k], 2)
                 # Get needle direction from images
-                dir_pred = get_direction(sitk_pred[k], 1)
-                dir_label= get_direction(sitk_label[k], 1)
+                (dir_pred, size_pred) = get_direction(sitk_pred[k], 1)
+                (dir_label, size_label) = get_direction(sitk_label[k], 1)
+                dir_cor_pred = vector_projection_onto_plane(dir_pred, n_COR)
+                dir_cor_label = vector_projection_onto_plane(dir_label, n_COR)
+                dir_sag_pred = vector_projection_onto_plane(dir_pred, n_SAG)
+                dir_sag_label = vector_projection_onto_plane(dir_label, n_SAG)
                 # Get tip position from stored physical coordinates 
-                # filename = test_data['label_meta_dict']['filename_or_obj'][k]
-                # name = filename.removeprefix(label_prefix)
+                filename = test_data['label_meta_dict']['filename_or_obj'][k]
+                print(filename.removeprefix(label_prefix))
                 # (tip_real, base_real) = get_physical_coordinates(name, image_list, cols_list)
                 if (tip_pred is not None) and (tip_label is not None):
                     err_3d = euclidean_distance_3d(tip_pred, tip_label)
                     err_2d = euclidean_distance_2d(tip_pred, tip_label)
-                    err_ang = angle_between_vectors(dir_pred, dir_label)
                     err_3d_list.append(err_3d)
                     err_2d_list.append(err_2d)
-                    err_ang_list.append(err_ang)
                     print('Image #%i: Err 3D = %f' %(N, err_3d))
                     print('Image #%i: Err 2D = %f' %(N, err_2d))
                 elif (tip_pred is None):
-                    false_negatives += 1
-                    print('Image #%i: False negative' %(N))
+                    false_negatives_tip += 1
+                    print('Image #%i: False negative TIP' %(N))
                 else:
-                    false_positives += 1
-                    print('Image #%i: False positive' %(N))
-        
+                    false_positives_tip += 1
+                    print('Image #%i: False positive TIP' %(N))
+                if (dir_pred is not None) and (dir_label is not None):
+                    if (size_pred <= 0.2*size_label):
+                        false_negatives_shaft += 1
+                        print('Image #%i: False negative SHAFT - too small' %(N))
+                    elif (size_pred > 5*size_label): 
+                        false_positives_shaft += 1
+                        print('Image #%i: False positive SHAFT - too big' %(N))
+                    else:
+                        err_ang_3d = angle_between_vectors(dir_pred, dir_label)
+                        err_ang_cor = angle_between_vectors(dir_cor_pred, dir_cor_label)
+                        err_ang_sag = angle_between_vectors(dir_sag_pred, dir_sag_label)
+                        err_ang_3d_list.append(err_ang_3d)
+                        err_ang_cor_list.append(err_ang_cor)
+                        err_ang_sag_list.append(err_ang_sag)
+                        print('Image #%i: Err Angle 3D = %f' %(N, err_ang_3d))
+                        print('Image #%i: Err Angle COR = %f' %(N, err_ang_cor))
+                        print('Image #%i: Err Angle SAG = %f' %(N, err_ang_sag))
+                elif (dir_pred is None):
+                    false_negatives_shaft += 1
+                    print('Image #%i: False negative SHAFT' %(N))
+                else:
+                    false_positives_shaft += 1
+                    print('Image #%i: False positive SHAFT' %(N))
         # Calculate mean and variance
         distances_3d = torch.stack(err_3d_list)
         variance_distance_3d = distances_3d.var().item()
@@ -275,25 +322,42 @@ def run(param, output_path, test_files, model_file):
         mean_distance_2d = distances_2d.mean().item()
         variance_distance_2d = distances_2d.var().item()
         
-        angles = torch.stack(err_ang_list)
-        mean_angles = angles.mean().item()
-        variance_angles = angles.var().item()
+        angles_3d = torch.stack(err_ang_3d_list)
+        mean_angles_3d = angles_3d.mean().item()
+        variance_angles_3d = angles_3d.var().item()
+        max_angle_3d = torch.max(torch.abs(angles_3d)).item()
+
+        angles_cor = torch.stack(err_ang_cor_list)
+        mean_angles_cor = angles_cor.mean().item()
+        variance_angles_cor = angles_cor.var().item()
+        max_angle_cor = torch.max(torch.abs(angles_cor)).item()
+
+        angles_sag = torch.stack(err_ang_sag_list)
+        mean_angles_sag = angles_sag.mean().item()
+        variance_angles_sag = angles_sag.var().item()
+        max_angle_sag = torch.max(torch.abs(angles_sag)).item()
+
 
         print ("===== FP/FN =====")
-        print("False Neg = %i/%i" %(false_negatives, N))
-        print("False Pos = %i/%i" %(false_positives, N))
-
+        print("False Neg Tip = %i/%i" %(false_negatives_tip, N))
+        print("False Pos Tip = %i/%i" %(false_positives_tip, N))
+        print("False Neg Shaft = %i/%i" %(false_negatives_shaft, N))
+        print("False Pos Shaft = %i/%i" %(false_positives_shaft, N))
+        
         print ("===== Angle between needle directions =====")
-        print("Mean Angle = %f" %(mean_angles))
-        print("Var Angle = %f" %(variance_angles))
+        print("Angle 3D = (%f +- %f) deg" %(mean_angles_3d, variance_angles_3d))
+        print("Max Angle 3D = %f deg" %(max_angle_3d))
 
-        print ("===== Mean Euclidean Distance (from label images) =====")
-        print("Mean 3D Err = %f" %(mean_distance_3d))
-        print("Var 3D Err = %f" %(variance_distance_3d))
-        print("Mean 2D Err = %f" %(mean_distance_2d))
-        print("Var 2D Err = %f" %(variance_distance_2d))
+        print("Angle COR = (%f +- %f) deg" %(mean_angles_cor, variance_angles_cor))
+        print("Max Angle COR = %f deg" %(max_angle_cor))
+        
+        print("Angle SAG = (%f +- %f) deg" %(mean_angles_sag, variance_angles_sag))
+        print("Max Angle SAG = %f deg" %(max_angle_sag))
                 
-
+        print ("===== Mean Euclidean Distance (from label images) =====")
+        print("3D Err = (%f +- %f) mm" %(mean_distance_3d, variance_distance_3d))
+        print("2D Err = (%f +- %f) mm" %(mean_distance_2d, variance_distance_2d))
+                
         
 def main(argv):
     
