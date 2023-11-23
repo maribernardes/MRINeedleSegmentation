@@ -160,14 +160,12 @@ def loadTrainingTransforms(param):
         if param.training_rand_noise == 1:
             transform_array.append(RandRicianNoised(keys=["image_1"], prob=1, mean=0, std=0.1))     # Add Rician noise to Magnitude
             transform_array.append(RandGaussianNoised(keys=["image_2"], prob=1, mean=0, std=0.08))  # Add small Gaussian noise to Phase
-            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True)         # Re-scale intensities after noise addition
         transform_array.append(ConcatItemsd(keys=["image_1", "image_2"], name="image"))     # Concatenate Magnitude and Phase to 2-channels       
     else:
         # One channel input
         transform_array = [            
             LoadImaged(keys=["image", "label"], image_only=False),                          # Load Magnitude and labelmap
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),         # Ensure channel first
-            ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)              # Scale intensity to 0-1
         ]
         if param.training_rand_noise == 1:
             transform_array.append(RandRicianNoised(keys=["image"], prob=1, mean=0, std=0.1))           # Add Rician noise to Magnitude 
@@ -175,7 +173,8 @@ def loadTrainingTransforms(param):
     # Real-Img intensity adjustment
     if (param.input_type == 'R') or (param.input_type == 'I'):
         transform_array.append(AdjustContrastd(keys=["image"], gamma=2.5))                  # Increase contrast for real/imaginary
-    
+
+    ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True) # MARIANA
     # Spatial adjustments
     transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))                            # Adjust image orientation
     transform_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest"))) # Adjust image spacing
@@ -232,6 +231,7 @@ def loadValidationTransforms(param):
     if (param.input_type == 'R') or (param.input_type == 'I'):
         val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
     # Spatial adjustment
+    val_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)) # MARIANA
     val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
     val_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
     val_transforms = Compose(val_array)
@@ -270,6 +270,7 @@ def loadInferenceTransforms(param, output_path):
         nearest_interp=False,
         to_tensor=True,
       ),
+    #   Activationsd(keys="pred", sigmoid=True),
       AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
       # RemoveSmallObjectsd(keys="pred", min_size=int(min_size_obj), connectivity=1, independent_channels=True),
       # KeepLargestConnectedComponentd(keys="pred", independent=True),
@@ -384,17 +385,25 @@ def generateFileList(param, input_path):
 
 def setupModel(param):
 
+    if param.axcodes == 'PIL':
+        strides = [(1, 2, 2), (1, 2, 2), (1, 1, 1)]   # PIL
+    else:    
+        strides = [(2, 2, 1), (2, 2, 1), (1, 1, 1)]   # LIP
     model_unet = UNet(
         spatial_dims=3, 
         in_channels=param.in_channels,
         out_channels=param.out_channels,
         channels=[16, 32, 64, 128],                 # This is a Unet with 4 layers
-        strides=[(2, 2, 1), (2, 2, 1), (1, 1, 1)],  # This is a Unet with 4 layers
+        #strides=[(2, 2, 1), (2, 2, 1), (1, 1, 1)],  # This is a Unet with 4 layers - LIP
+        strides= strides,  
         num_res_units=2,
         norm=Norm.BATCH,
     )
     
-    post_pred = AsDiscrete(argmax=True, n_classes=param.out_channels)
-    post_label = AsDiscrete(n_classes=param.out_channels)
+    post_pred = AsDiscrete(argmax=True, to_onehot=param.out_channels, n_classes=param.out_channels) # MARIANA
+    post_label = AsDiscrete(to_onehot=param.out_channels, n_classes=param.out_channels)             # MARIANA
+    
+    # post_pred = AsDiscrete(argmax=True, n_classes=param.out_channels)
+    # post_label = AsDiscrete(n_classes=param.out_channels)
     
     return (model_unet, post_pred, post_label)
