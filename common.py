@@ -221,6 +221,7 @@ def loadValidationTransforms(param):
         val_array = [
             LoadImaged(keys=["image_1", "image_2", "label"], image_only=False),
             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]),
+            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True), # Scale intensity to 0-1
             ConcatItemsd(keys=["image_1", "image_2"], name="image")
         ]
     else:
@@ -228,11 +229,12 @@ def loadValidationTransforms(param):
         val_array = [            
             LoadImaged(keys=["image", "label"], image_only=False),
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), 
+            ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
     # Intensity adjustment (Real/Img only)
     if (param.input_type == 'R') or (param.input_type == 'I'):
         val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
-    val_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
+        val_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
     
     # Spatial adjustment
     val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
@@ -247,16 +249,18 @@ def loadInferenceTransforms(param, output_path):
         pre_array = [
             LoadImaged(keys=["image_1", "image_2"], image_only=False),
             EnsureChannelFirstd(keys=["image_1", "image_2"]), 
+            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True), # Scale intensity to 0-1
             ConcatItemsd(keys=["image_1", "image_2"], name="image"),
         ]        
     else:
         # 1-channel input
         pre_array = [
             LoadImaged(keys=["image"], image_only=False),
-            EnsureChannelFirstd(keys=["image"], channel_dim='no_channel')
+            EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'),
+            ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
-    # Intensity adjustment
-    pre_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
+    # # Intensity adjustment - NO NEED TWICE
+    # pre_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
     
     # Spatial adjustments
     pre_array.append(Orientationd(keys=["image"], axcodes=param.axcodes))
@@ -276,11 +280,11 @@ def loadInferenceTransforms(param, output_path):
         to_tensor=True,
       ),
       # UNetBack (No Activations)
-      # AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
-      
-      # UNet Original - See if adding Activationsd improves results
-      Activationsd(keys="pred", sigmoid=True),
       AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
+      
+    #   # UNet Original - See if adding Activationsd improves results
+    #   Activationsd(keys="pred", sigmoid=True),
+    #   AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
         
       SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
     ])      
@@ -401,16 +405,13 @@ def setupModel(param):
         spatial_dims=3, 
         in_channels=param.in_channels,
         out_channels=param.out_channels,
-        channels=[16, 32, 64, 128],                 # This is a Unet with 4 layers
+        channels=[16, 32, 64, 128],        # This is a Unet with 4 layers
         strides= strides,  
         num_res_units=2,
         norm=Norm.BATCH,
     )
     
-    post_pred = AsDiscrete(argmax=True, to_onehot=param.out_channels, n_classes=param.out_channels) # MARIANA
-    post_label = AsDiscrete(to_onehot=param.out_channels, n_classes=param.out_channels)             # MARIANA
-    
-    # post_pred = AsDiscrete(argmax=True, n_classes=param.out_channels)
-    # post_label = AsDiscrete(n_classes=param.out_channels)
+    post_pred = AsDiscrete(argmax=True, to_onehot=param.out_channels, n_classes=param.out_channels) 
+    post_label = AsDiscrete(to_onehot=param.out_channels, n_classes=param.out_channels)             
     
     return (model_unet, post_pred, post_label)
