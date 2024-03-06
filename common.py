@@ -109,6 +109,7 @@ class TrainingParam(Param):
         self.max_epochs = int(self.config.get('training', 'max_epochs', fallback='200'))
         self.training_device_name = self.config.get('training', 'training_device_name')
         self.training_rand_noise = float(self.config.get('training', 'random_noise', fallback='0.0'))
+        self.training_spike_noise = int(self.config.get('training', 'random_spike', fallback='0'))
         self.training_rand_flip = int(self.config.get('training', 'random_flip', fallback='0'))
         self.training_rand_zoom = float(self.config.get('training', 'random_zoom', fallback='0.0'))
 
