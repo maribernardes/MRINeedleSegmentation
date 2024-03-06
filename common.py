@@ -22,11 +22,11 @@ from monai.transforms import (
     RandAdjustContrastd,
     RandGaussianNoised,
     RandRicianNoised,
-    RandKSpaceSpikeNoised,
     RandFlipd,
     RandZoomd,
     RandScaleIntensityd,
     RandStdShiftIntensityd,
+    RandKSpaceSpikeNoised,
     RemoveSmallObjectsd,
     SaveImaged,
     ScaleIntensityd,
@@ -108,10 +108,9 @@ class TrainingParam(Param):
         self.training_name = self.config.get('training', 'training_name')
         self.max_epochs = int(self.config.get('training', 'max_epochs', fallback='200'))
         self.training_device_name = self.config.get('training', 'training_device_name')
-        self.training_rand_noise = int(self.config.get('training', 'random_noise', fallback='0'))
-        self.training_spike_noise = int(self.config.get('training', 'random_spike', fallback='0'))
+        self.training_rand_noise = float(self.config.get('training', 'random_noise', fallback='0.0'))
         self.training_rand_flip = int(self.config.get('training', 'random_flip', fallback='0'))
-        self.training_rand_zoom = int(self.config.get('training', 'random_zoom', fallback='0'))
+        self.training_rand_zoom = float(self.config.get('training', 'random_zoom', fallback='0.0'))
 
 class TestParam(Param):
 
@@ -142,6 +141,8 @@ class InferenceParam(Param):
     def readParameters(self):
         super().readParameters()
         self.inference_device_name = self.config.get('inference', 'inference_device_name')
+        self.min_size_object = self.config.get('inference', 'min_size_object')
+
 
 #--------------------------------------------------------------------------------
 # Load Transforms
@@ -165,23 +166,22 @@ def loadTrainingTransforms(param):
         transform_array = [            
             LoadImaged(keys=["image", "label"], image_only=False),                          # Load Magnitude and labelmap
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),         # Ensure channel first
-            ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
         if param.training_rand_noise == 1:
             transform_array.append(RandRicianNoised(keys=["image"], prob=1, mean=0, std=0.1))           # Add Rician noise to Magnitude 
+            transform_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))  # Re-scale intensity after noise addition
     # Real-Img intensity adjustment
     if (param.input_type == 'R') or (param.input_type == 'I'):
         transform_array.append(AdjustContrastd(keys=["image"], gamma=2.5))                  # Increase contrast for real/imaginary
 
-    if param.training_spike_noise == 1:
-        transform_array.append(RandKSpaceSpikeNoised(keys=['image'], prob=0.9, channel_wise=False, intensity_range=(0.95*8.6,1.10*8.6)))
-    
-    # Re-scale intensity after noise addition
-    transform_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
-   
+    ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True) # MARIANA
     # Spatial adjustments
     transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))                            # Adjust image orientation
     transform_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest"))) # Adjust image spacing
+
+    if param.training_spike_noise == 1:
+        transform_array.append(RandKSpaceSpikeNoised(keys=['image'], prob=0.9, channel_wise=False, intensity_range=(0.95*8.6,1.10*8.6)))
+
 
     # Data augmentation
     if param.training_rand_flip == 1:
@@ -221,22 +221,21 @@ def loadValidationTransforms(param):
         val_array = [
             LoadImaged(keys=["image_1", "image_2", "label"], image_only=False),
             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]),
-            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True), # Scale intensity to 0-1
+            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True),
             ConcatItemsd(keys=["image_1", "image_2"], name="image")
         ]
     else:
         # 1-channel input
         val_array = [            
             LoadImaged(keys=["image", "label"], image_only=False),
-            EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'), 
+            EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),
             ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
     # Intensity adjustment (Real/Img only)
     if (param.input_type == 'R') or (param.input_type == 'I'):
         val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
-        val_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
-    
     # Spatial adjustment
+    val_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)) # MARIANA
     val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
     val_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
     val_transforms = Compose(val_array)
@@ -249,7 +248,7 @@ def loadInferenceTransforms(param, output_path):
         pre_array = [
             LoadImaged(keys=["image_1", "image_2"], image_only=False),
             EnsureChannelFirstd(keys=["image_1", "image_2"]), 
-            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True), # Scale intensity to 0-1
+            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True),
             ConcatItemsd(keys=["image_1", "image_2"], name="image"),
         ]        
     else:
@@ -259,10 +258,6 @@ def loadInferenceTransforms(param, output_path):
             EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'),
             ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
-    # # Intensity adjustment - NO NEED TWICE
-    # pre_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))
-    
-    # Spatial adjustments
     pre_array.append(Orientationd(keys=["image"], axcodes=param.axcodes))
     pre_array.append(Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")))
     pre_transforms = Compose(pre_array)
@@ -279,13 +274,10 @@ def loadInferenceTransforms(param, output_path):
         nearest_interp=False,
         to_tensor=True,
       ),
-      # UNetBack (No Activations)
-      AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
-      
-    #   # UNet Original - See if adding Activationsd improves results
     #   Activationsd(keys="pred", sigmoid=True),
-    #   AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
-        
+      AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
+      # RemoveSmallObjectsd(keys="pred", min_size=int(min_size_obj), connectivity=1, independent_channels=True),
+      # KeepLargestConnectedComponentd(keys="pred", independent=True),
       SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
     ])      
     
@@ -405,13 +397,17 @@ def setupModel(param):
         spatial_dims=3, 
         in_channels=param.in_channels,
         out_channels=param.out_channels,
-        channels=[16, 32, 64, 128],        # This is a Unet with 4 layers
+        channels=[16, 32, 64, 128],                 # This is a Unet with 4 layers
+        #strides=[(2, 2, 1), (2, 2, 1), (1, 1, 1)],  # This is a Unet with 4 layers - LIP
         strides= strides,  
         num_res_units=2,
         norm=Norm.BATCH,
     )
     
-    post_pred = AsDiscrete(argmax=True, to_onehot=param.out_channels, n_classes=param.out_channels) 
-    post_label = AsDiscrete(to_onehot=param.out_channels, n_classes=param.out_channels)             
+    post_pred = AsDiscrete(argmax=True, to_onehot=param.out_channels, n_classes=param.out_channels) # MARIANA
+    post_label = AsDiscrete(to_onehot=param.out_channels, n_classes=param.out_channels)             # MARIANA
+    
+    # post_pred = AsDiscrete(argmax=True, n_classes=param.out_channels)
+    # post_label = AsDiscrete(n_classes=param.out_channels)
     
     return (model_unet, post_pred, post_label)
