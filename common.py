@@ -158,6 +158,7 @@ def loadTrainingTransforms(param):
             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]),                      # Ensure channel first
             ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True) # Scale intensity to 0-1
         ]
+        # Noise addition
         if param.training_rand_noise == 1:
             transform_array.append(RandRicianNoised(keys=["image_1"], prob=1, mean=0, std=0.1))     # Add Rician noise to Magnitude
             transform_array.append(RandGaussianNoised(keys=["image_2"], prob=1, mean=0, std=0.08))  # Add small Gaussian noise to Phase
@@ -167,22 +168,25 @@ def loadTrainingTransforms(param):
         transform_array = [            
             LoadImaged(keys=["image", "label"], image_only=False),                          # Load Magnitude and labelmap
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),         # Ensure channel first
+            ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)              # Scale intensity to 0-1
         ]
+        # Noise addition
         if param.training_rand_noise == 1:
             transform_array.append(RandRicianNoised(keys=["image"], prob=1, mean=0, std=0.1))           # Add Rician noise to Magnitude 
-            transform_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True))  # Re-scale intensity after noise addition
-    # Real-Img intensity adjustment
+    
+    # Intensity adjustment
     if (param.input_type == 'R') or (param.input_type == 'I'):
         transform_array.append(AdjustContrastd(keys=["image"], gamma=2.5))                  # Increase contrast for real/imaginary
-
-    ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True) # MARIANA
+    ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True) # Re-scale intensity after noise addition
+    
     # Spatial adjustments
     transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))                            # Adjust image orientation
     transform_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest"))) # Adjust image spacing
 
+    # Spike noise addition
     if param.training_spike_noise == 1:
         transform_array.append(RandKSpaceSpikeNoised(keys=['image'], prob=0.9, channel_wise=False, intensity_range=(0.95*8.6,1.10*8.6)))
-
+        ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True) # Re-scale intensity after noise addition
 
     # Data augmentation
     if param.training_rand_flip == 1:
@@ -222,7 +226,6 @@ def loadValidationTransforms(param):
         val_array = [
             LoadImaged(keys=["image_1", "image_2", "label"], image_only=False),
             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]),
-            ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True),
             ConcatItemsd(keys=["image_1", "image_2"], name="image")
         ]
     else:
@@ -230,13 +233,12 @@ def loadValidationTransforms(param):
         val_array = [            
             LoadImaged(keys=["image", "label"], image_only=False),
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),
-            ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
     # Intensity adjustment (Real/Img only)
     if (param.input_type == 'R') or (param.input_type == 'I'):
         val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
-    # Spatial adjustment
     val_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)) # MARIANA
+    # Spatial adjustment
     val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
     val_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
     val_transforms = Compose(val_array)
