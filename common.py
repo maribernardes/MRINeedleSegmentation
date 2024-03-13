@@ -41,6 +41,7 @@ from monai.networks.nets import UNet, BasicUNetPlusPlus
 from monai.networks.layers import Norm
 
 import numpy as np
+import random
 import glob
 import os
 import shutil
@@ -109,8 +110,8 @@ class TrainingParam(Param):
         self.max_epochs = int(self.config.get('training', 'max_epochs', fallback='200'))
         self.training_device_name = self.config.get('training', 'training_device_name')
         self.training_rand_noise = float(self.config.get('training', 'random_noise', fallback='0.0'))
-        self.training_spike_noise = int(self.config.get('training', 'random_spike', fallback='0'))
-        self.training_rand_flip = int(self.config.get('training', 'random_flip', fallback='0'))
+        self.training_spike_noise = float(self.config.get('training', 'random_spike', fallback='0.0'))
+        self.training_rand_flip = float(self.config.get('training', 'random_flip', fallback='0.0'))
         self.training_rand_zoom = float(self.config.get('training', 'random_zoom', fallback='0.0'))
 
 class TestParam(Param):
@@ -159,9 +160,10 @@ def loadTrainingTransforms(param):
             ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True) # Scale intensity to 0-1
         ]
         # Noise addition
-        if param.training_rand_noise == 1:
-            transform_array.append(RandRicianNoised(keys=["image_1"], prob=1, mean=0, std=0.1))     # Add Rician noise to Magnitude
-            transform_array.append(RandGaussianNoised(keys=["image_2"], prob=1, mean=0, std=0.08))  # Add small Gaussian noise to Phase
+    if param.training_rand_noise != 0:
+        if random.random() < param.training_rand_noise: # Probability of adding noise
+            transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
+            transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Phase - mean=0, std=0.08
         transform_array.append(ConcatItemsd(keys=["image_1", "image_2"], name="image"))     # Concatenate Magnitude and Phase to 2-channels       
     else:
         # One channel input
@@ -171,8 +173,8 @@ def loadTrainingTransforms(param):
             ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)              # Scale intensity to 0-1
         ]
         # Noise addition
-        if param.training_rand_noise == 1:
-            transform_array.append(RandRicianNoised(keys=["image"], prob=1, mean=0, std=0.1))           # Add Rician noise to Magnitude 
+        if param.training_rand_noise != 0:
+            transform_array.append(RandRicianNoised(keys=["image"], prob=param.training_rand_noise, mean=0, std=0.1))           # Add Rician noise to Magnitude 
     
     # Intensity adjustment
     if (param.input_type == 'R') or (param.input_type == 'I'):
@@ -184,23 +186,23 @@ def loadTrainingTransforms(param):
     transform_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest"))) # Adjust image spacing
 
     # Spike noise addition
-    if param.training_spike_noise == 1:
-        transform_array.append(RandKSpaceSpikeNoised(keys=['image'], prob=0.9, channel_wise=False, intensity_range=(0.95*8.6,1.10*8.6)))
+    if param.training_spike_noise != 0:
+        transform_array.append(RandKSpaceSpikeNoised(keys=['image'], prob=param.training_spike_noise, channel_wise=False, intensity_range=(0.95*8.6,1.10*8.6)))
         ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True) # Re-scale intensity after noise addition
 
     # Data augmentation
-    if param.training_rand_flip == 1:
+    if param.training_rand_flip != 0:
         transform_array.append(RandZoomd(
                 keys=['image', 'label'],
-                prob=0.5,
+                prob=param.training_rand_flip,
                 min_zoom=1.02,
                 max_zoom=1.20,
                 mode=['area', 'nearest'],
             ))
-    if param.training_rand_zoom == 1:
+    if param.training_rand_zoom != 0:
         transform_array.append(RandFlipd(
             keys=['image', 'label'],
-            prob=0.5,
+            prob=param.training_rand_zoom,
             spatial_axis=2,
         ))
 
