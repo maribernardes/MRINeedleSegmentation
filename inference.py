@@ -21,39 +21,39 @@ import argparse
 from configparser import ConfigParser
 
 from common import *
+from monai.transforms import SaveImage, AsDiscrete, Invertd
+from sitkIO import PushSitkImage
 
 def run(param, output_path, val_files, model_file):
   device = torch.device(param.inference_device_name)
   
-  print('Loading dataset')
-  (pre_transforms, post_transforms) =  loadInferenceTransforms(param, output_path)
+  print('Loading dataset...')
+  (pre_transforms, post_transforms) = loadInferenceTransforms(param, output_path)
   val_ds = CacheDataset(data=val_files, transform=pre_transforms, cache_rate=1.0, num_workers=4)
   val_loader = DataLoader(val_ds, batch_size=1, num_workers=4)
+  print('Outputs will be saved in ' + output_path)
   
   #--------------------------------------------------------------------------------
   # Model
   #--------------------------------------------------------------------------------
-  print('Setting UNet')
+  print('Loading model...')
   (model_unet, post_pred, post_label) = setupModel(param)
   model = model_unet.to(device)
-  # dice_metric = DiceMetric(include_background=False, reduction="mean")
   model.load_state_dict(torch.load(os.path.join(param.root_dir, model_file), map_location=device))
-
+  
+  with torch.no_grad():
+    for i,val_data in enumerate(val_loader):
+      roi_size = param.window_size
+      sw_batch_size = 4
+      val_inputs = val_data['image'].to(device)
+      val_data['pred'] = sliding_window_inference(val_inputs, roi_size, sw_batch_size, model)
+      val_data = [post_transforms(i) for i in decollate_batch(val_data['pred'])]
+    
   #--------------------------------------------------------------------------------
-  # Validate
+  # Evaluate
   #--------------------------------------------------------------------------------
   print('Evaluate model')
   model.eval()
-
-  with torch.no_grad():
-    for i, val_data in enumerate(val_loader):
-      roi_size = param.window_size
-      sw_batch_size = 4
-      
-      val_inputs = val_data["image"].to(device)
-      val_data["pred"] = sliding_window_inference(val_inputs, roi_size, sw_batch_size, model)
-      val_data = [post_transforms(i) for i in decollate_batch(val_data)]
-      val_outputs = from_engine(["pred"])(val_data)
       
 def main(argv):
   try:
@@ -64,8 +64,6 @@ def main(argv):
                         help='A file or a folder that contains images.')
     parser.add_argument('output', metavar='OUTPUT_PATH', type=str, nargs=1,
                         help='A folder to store the output file(s).')
-    parser.add_argument('-t', dest='type', default='folder',
-                        help="Image type ('file': a file; 'folder': a folder containing multiple images.)")
     parser.add_argument('-T', dest='tl_data', action='store_const',
                         const=True, default=False,
                         help='Use a result of transfer learning.')
@@ -77,7 +75,7 @@ def main(argv):
     output_path = args.output[0]
 
     # Make the destination directory, if it does not exists.
-    #os.makedirs(output_path, exist_ok=True)
+    os.makedirs(output_path, exist_ok=True)
 
     print('Loading parameters from: ' + config_file)
     param = InferenceParam(config_file)

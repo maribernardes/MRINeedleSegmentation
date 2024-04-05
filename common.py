@@ -28,7 +28,7 @@ from monai.transforms import (
     RandStdShiftIntensityd,
     RandKSpaceSpikeNoised,
     RemoveSmallObjectsd,
-    SaveImaged,
+    SaveImage,
     ScaleIntensityd,
     ScaleIntensityRanged,
     ScaleIntensityRangePercentilesd,    
@@ -143,7 +143,6 @@ class InferenceParam(Param):
     def readParameters(self):
         super().readParameters()
         self.inference_device_name = self.config.get('inference', 'inference_device_name')
-        self.min_size_object = self.config.get('inference', 'min_size_object')
 
 
 #--------------------------------------------------------------------------------
@@ -247,7 +246,7 @@ def loadValidationTransforms(param):
     return val_transforms
     
 def loadInferenceTransforms(param, output_path):
- # Define pre-inference transforms
+    # Define pre-inference transforms
     if param.in_channels==2:
         # 2-channel input
         pre_array = [
@@ -268,24 +267,10 @@ def loadInferenceTransforms(param, output_path):
     pre_transforms = Compose(pre_array)
     
     # Define post-inference transforms
-    post_transforms = Compose([
-      Invertd(
-        keys="pred",
-        transform=pre_transforms,
-        orig_keys="image", 
-        meta_keys="pred_meta_dict", 
-        orig_meta_keys="image_meta_dict",  
-        meta_key_postfix="meta_dict",  
-        nearest_interp=False,
-        to_tensor=True,
-      ),
-    #   Activationsd(keys="pred", sigmoid=True),
-      AsDiscreted(keys="pred", argmax=True, num_classes=param.out_channels),
-      # RemoveSmallObjectsd(keys="pred", min_size=int(min_size_obj), connectivity=1, independent_channels=True),
-      # KeepLargestConnectedComponentd(keys="pred", independent=True),
-      SaveImaged(keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False),
-    ])      
-    
+    post_array = [AsDiscrete(argmax=True, n_classes=param.out_channels),
+                SaveImage(output_dir=output_path, output_postfix="seg", resample=False, output_dtype=np.uint16, separate_folder=False, print_log=False)
+    ]
+    post_transforms = Compose(post_array)
     return (pre_transforms, post_transforms)
 
 #--------------------------------------------------------------------------------
@@ -343,11 +328,12 @@ def generateLabeledFileList(param, prefix):
     return data_dicts    
 
 def generateFileList(param, input_path):
-    print('Reading images from: ' + param.data_dir)
-    images_m = sorted(glob.glob(os.path.join(param.data_dir, input_path, "*_M.nii.gz")))
-    images_p = sorted(glob.glob(os.path.join(param.data_dir, input_path, "*_P.nii.gz")))
-    images_r = sorted(glob.glob(os.path.join(param.data_dir, input_path, "*_R.nii.gz")))
-    images_i = sorted(glob.glob(os.path.join(param.data_dir, input_path, "*_I.nii.gz")))
+    print('Reading images from: ' + input_path)
+    images_m = sorted(glob.glob(os.path.join(input_path, "*_M.nii.gz")))
+    images_p = sorted(glob.glob(os.path.join(input_path, "*_P.nii.gz")))
+    images_r = sorted(glob.glob(os.path.join(input_path, "*_R.nii.gz")))
+    images_i = sorted(glob.glob(os.path.join(input_path, "*_I.nii.gz")))
+    print(images_m)
     
     # Use two types of images combined
     if param.in_channels==2:
