@@ -13,8 +13,7 @@ from ipywidgets import interact
 
 AX_DIR = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
 COR_DIR = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0) 
-SAG_DIR = (0.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0)
-
+SAG_DIR = (0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 0.0, -1.0, 0.0)
 ##########################################################
 ## UTILS
 # Get the index of the list element with closest value to provided target
@@ -213,7 +212,17 @@ def get_real_imag_arrays(array_comp):
 
 ##########################################################
 ## SITK IMAGE MANIPULATION
-
+# Return string with the image direction name
+def getDirectionName(sitk_image):
+    direction = sitk_image.GetDirection()
+    if direction == AX_DIR:
+        return 'AX'
+    elif direction == SAG_DIR:
+        return 'SAG'
+    elif direction == COR_DIR:
+        return 'COR'
+    else:
+        return 'Reformat'
 # Get mean intensity difference given two sitkImages
 # Useful to calculate the phase shift between two phase images
 def getMeanIntensityShift(sitkImage1, sitkImage2, mask):
