@@ -16,6 +16,7 @@ from monai.transforms import (
     LoadImaged,
     NormalizeIntensityd,
     Orientationd,
+    RandBiasFieldd,
     RandAffined,
     RandCropByLabelClassesd,
     RandCropByPosNegLabeld,
@@ -109,6 +110,7 @@ class TrainingParam(Param):
         self.training_name = self.config.get('training', 'training_name')
         self.max_epochs = int(self.config.get('training', 'max_epochs', fallback='200'))
         self.training_device_name = self.config.get('training', 'training_device_name')
+        self.training_rand_bias = float(self.config.get('training', 'random_bias', fallback='0.0'))
         self.training_rand_noise = float(self.config.get('training', 'random_noise', fallback='0.0'))
         self.training_spike_noise = float(self.config.get('training', 'random_spike', fallback='0.0'))
         self.training_rand_flip = float(self.config.get('training', 'random_flip', fallback='0.0'))
@@ -158,12 +160,15 @@ def loadTrainingTransforms(param):
             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]),                      # Ensure channel first
             ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True) # Scale intensity to 0-1
         ]
+        # Bias addition
+        if param.training_rand_bias != 0:
+            transform_array.append(RandBiasFieldd(keys=["image_1"], prob=param.training_rand_bias, coeff_range=(0.2, 0.3)))     # Add Field Bias 
         # Noise addition
-    if param.training_rand_noise != 0:
-        if random.random() < param.training_rand_noise: # Probability of adding noise
-            transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
-            transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Phase - mean=0, std=0.08
-        transform_array.append(ConcatItemsd(keys=["image_1", "image_2"], name="image"))     # Concatenate Magnitude and Phase to 2-channels       
+        if param.training_rand_noise != 0:
+            if random.random() < param.training_rand_noise: # Probability of adding noise
+                transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
+                transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Phase - mean=0, std=0.08
+            transform_array.append(ConcatItemsd(keys=["image_1", "image_2"], name="image"))     # Concatenate Magnitude and Phase to 2-channels       
     else:
         # One channel input
         transform_array = [            
@@ -171,6 +176,9 @@ def loadTrainingTransforms(param):
             EnsureChannelFirstd(keys=["image", "label"], channel_dim='no_channel'),         # Ensure channel first
             ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)              # Scale intensity to 0-1
         ]
+        # Bias addition
+        if param.training_rand_bias != 0:
+            transform_array.append(RandBiasFieldd(keys=["image"], prob=param.training_rand_bias, coeff_range=(0.2, 0.3)))     # Add Field Bias 
         # Noise addition
         if param.training_rand_noise != 0:
             transform_array.append(RandRicianNoised(keys=["image"], prob=param.training_rand_noise, mean=0, std=0.1))           # Add Rician noise to Magnitude 
