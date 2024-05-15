@@ -163,12 +163,40 @@ def loadTrainingTransforms(param):
         # Bias addition
         if param.training_rand_bias != 0:
             transform_array.append(RandBiasFieldd(keys=["image_1"], prob=param.training_rand_bias, coeff_range=(0.2, 0.3)))     # Add Field Bias 
+            if (param.input_type == 'R') or (param.input_type == 'I'):
+                transform_array.append(RandBiasFieldd(keys=["image_2"], prob=param.training_rand_bias, coeff_range=(0.2, 0.3))) # Add Field Bias 
         # Noise addition
         if param.training_rand_noise != 0:
             if random.random() < param.training_rand_noise: # Probability of adding noise
                 transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
-                transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Phase - mean=0, std=0.08
+                if (param.input_type == 'R') or (param.input_type == 'I'):
+                    transform_array.append(RandRicianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
+                else:     
+                    transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Phase - mean=0, std=0.08
             transform_array.append(ConcatItemsd(keys=["image_1", "image_2"], name="image"))     # Concatenate Magnitude and Phase to 2-channels       
+    elif param.in_channels==3:
+        # Three channels input
+        transform_array = [
+            LoadImaged(keys=["image_1", "image_2", "image_3", "label"], image_only=False),  # Load Magnitude, Phase, Type-A and labelmap
+            EnsureChannelFirstd(keys=["image_1", "image_2", "image_3", "label"]),           # Ensure channel first
+            ScaleIntensityd(keys=["image_1", "image_2", "image_3"], minv=0, maxv=1, channel_wise=True) # Scale intensity to 0-1
+        ]
+        # Bias addition
+        if param.training_rand_bias != 0:
+            transform_array.append(RandBiasFieldd(keys=["image_1"], prob=param.training_rand_bias, coeff_range=(0.2, 0.3)))     # Add Field Bias 
+            transform_array.append(RandBiasFieldd(keys=["image_3"], prob=param.training_rand_bias, coeff_range=(0.2, 0.3)))     # Add Field Bias 
+            if (param.input_type == 'R') or (param.input_type == 'I'):
+                transform_array.append(RandBiasFieldd(keys=["image_2"], prob=param.training_rand_bias, coeff_range=(0.2, 0.3))) # Add Field Bias 
+        # Noise addition
+        if param.training_rand_noise != 0:
+            if random.random() < param.training_rand_noise: # Probability of adding noise
+                transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
+                transform_array.append(RandRicianNoised(keys=["image_3"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to TypeA -  mean=0, std=0.1
+                if (param.input_type == 'R') or (param.input_type == 'I'):
+                    transform_array.append(RandRicianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
+                else:     
+                    transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Phase - mean=0, std=0.08
+            transform_array.append(ConcatItemsd(keys=["image_1", "image_2", "image_3"], name="image"))     # Concatenate Magnitude, Phase and Type-A to 3-channels       
     else:
         # One channel input
         transform_array = [            
@@ -183,9 +211,9 @@ def loadTrainingTransforms(param):
         if param.training_rand_noise != 0:
             transform_array.append(RandRicianNoised(keys=["image"], prob=param.training_rand_noise, mean=0, std=0.1))           # Add Rician noise to Magnitude 
     
-    # Intensity adjustment
-    if (param.input_type == 'R') or (param.input_type == 'I'):
-        transform_array.append(AdjustContrastd(keys=["image"], gamma=2.5))                  # Increase contrast for real/imaginary
+    # # Intensity adjustment
+    # if (param.input_type == 'R') or (param.input_type == 'I'):
+    #     transform_array.append(AdjustContrastd(keys=["image"], gamma=2.5))                  # Increase contrast for real/imaginary
     ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True) # Re-scale intensity after noise addition
     
     # Spatial adjustments
@@ -237,6 +265,14 @@ def loadValidationTransforms(param):
             EnsureChannelFirstd(keys=["image_1", "image_2", "label"]),
             ConcatItemsd(keys=["image_1", "image_2"], name="image")
         ]
+    elif param.in_channels==3:
+        # 2-channel input
+        val_array = [
+            LoadImaged(keys=["image_1", "image_2", "image_3", "label"], image_only=False),
+            EnsureChannelFirstd(keys=["image_1", "image_2", "image_3", "label"]),
+            ConcatItemsd(keys=["image_1", "image_2", "image_3"], name="image")
+        ]
+        
     else:
         # 1-channel input
         val_array = [            
@@ -263,6 +299,14 @@ def loadInferenceTransforms(param, output_path):
             ScaleIntensityd(keys=["image_1", "image_2"], minv=0, maxv=1, channel_wise=True),
             ConcatItemsd(keys=["image_1", "image_2"], name="image"),
         ]        
+    elif param.in_channels==3:
+        # 2-channel input
+        pre_array = [
+            LoadImaged(keys=["image_1", "image_2", "image_3"], image_only=False),
+            EnsureChannelFirstd(keys=["image_1", "image_2", "image_3"]), 
+            ScaleIntensityd(keys=["image_1", "image_2", "image_3"], minv=0, maxv=1, channel_wise=True),
+            ConcatItemsd(keys=["image_1", "image_2", "image_3"], name="image"),
+        ] 
     else:
         # 1-channel input
         pre_array = [
@@ -291,6 +335,7 @@ def generateLabeledFileList(param, prefix):
     images_p = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_images", "*_P.nii.gz")))
     images_r = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_images", "*_R.nii.gz")))
     images_i = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_images", "*_I.nii.gz")))
+    images_a = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_images", "*_A.nii.gz")))
     labels = sorted(glob.glob(os.path.join(param.data_dir, prefix + "_labels", "*_"+param.label_type+"_label.nii.gz")))
     
     # Use two types of images combined
@@ -307,6 +352,20 @@ def generateLabeledFileList(param, prefix):
                 {"image_1": image_m_name, "image_2": image_p_name, "label":label_name}
                 for image_m_name, image_p_name, label_name in zip(images_m, images_p, labels)
             ]
+    # Use three types of images combined
+    elif param.in_channels==3:
+        # Use real and imaginary images
+        if param.input_type=='R' or param.input_type=='I':
+            data_dicts = [
+                {"image_1": image_r_name, "image_2": image_i_name,  "image_3": image_a_name, "label":label_name}
+                for image_r_name, image_i_name, image_a_name, label_name in zip(images_r, images_i, images_a, labels)
+            ]
+        # Use magnitude and phase images
+        else:
+            data_dicts = [
+                {"image_1": image_m_name, "image_2": image_p_name, "image_3": image_a_name, "label":label_name}
+                for image_m_name, image_p_name, image_a_name, label_name in zip(images_m, images_p, images_a, labels)
+            ]        
     # Use only one type of image        
     else:
         # Use real images
@@ -327,6 +386,12 @@ def generateLabeledFileList(param, prefix):
                 {"image": image_name, "label": label_name}
                 for image_name, label_name in zip(images_p, labels)
             ]
+        # Use type-A images
+        elif param.input_type=='A':
+            data_dicts = [
+                {"image": image_name, "label": label_name}
+                for image_name, label_name in zip(images_a, labels)
+            ]
         # Use magnitude images
         else:
             data_dicts = [
@@ -341,6 +406,7 @@ def generateFileList(param, input_path):
     images_p = sorted(glob.glob(os.path.join(input_path, "*_P.nii.gz")))
     images_r = sorted(glob.glob(os.path.join(input_path, "*_R.nii.gz")))
     images_i = sorted(glob.glob(os.path.join(input_path, "*_I.nii.gz")))
+    images_a = sorted(glob.glob(os.path.join(input_path, "*_A.nii.gz")))
     print(images_m)
     
     # Use two types of images combined
@@ -357,6 +423,20 @@ def generateFileList(param, input_path):
                 {"image_1": image_m_name, "image_2": image_p_name}
                 for image_m_name, image_p_name in zip(images_m, images_p)
             ]    
+    # Use three types of images combined
+    if param.in_channels==3:
+        # Use real and imaginary images
+        if param.input_type=='R' or param.input_type=='I':
+            data_dicts = [
+                {"image_1": image_r_name, "image_2": image_i_name, "image_3": image_a_name}
+                for image_r_name, image_i_name, image_a_name in zip(images_r, images_i, images_a)
+            ]
+        # Use magnitude and phase images
+        else:
+            data_dicts = [
+                {"image_1": image_m_name, "image_2": image_p_name}
+                for image_m_name, image_p_name in zip(images_m, images_p)
+            ]  
     # Use only one type of image        
     else:
         # Use real images
@@ -373,6 +453,11 @@ def generateFileList(param, input_path):
         elif param.input_type=='P':
             data_dicts = [
                 {"image": image_name} for image_name in images_p
+            ]
+        # Use type-A images
+        elif param.input_type=='A':
+            data_dicts = [
+                {"image": image_name} for image_name in images_a
             ]
         # Use magnitude images
         else:

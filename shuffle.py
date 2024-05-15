@@ -54,14 +54,17 @@ def shuffle_dataset(src_dir, dst_dir, training_split, first_index, dir_prefix, f
       filename2 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_P.nii.gz'
       filename3 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_R.nii.gz'
       filename4 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_I.nii.gz'
+      filename5 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_A.nii.gz'
       src_path1 = '%s/%s' % (src_dir, filename1)
       src_path2 = '%s/%s' % (src_dir, filename2)
       src_path3 = '%s/%s' % (src_dir, filename3)
       src_path4 = '%s/%s' % (src_dir, filename4)
+      src_path5 = '%s/%s' % (src_dir, filename5)
       shutil.copy(src_path1, dst_dir_image)
       shutil.copy(src_path2, dst_dir_image)
       shutil.copy(src_path3, dst_dir_image)
       shutil.copy(src_path4, dst_dir_image)
+      shutil.copy(src_path5, dst_dir_image)
       
       # label file
       filename1 = file_prefix + '_'+ str(cases[i]).zfill(3) + '_shaft_label.nii.gz'
