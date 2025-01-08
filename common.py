@@ -217,7 +217,10 @@ def loadTrainingTransforms(param):
     ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True) # Re-scale intensity after noise addition
     
     # Spatial adjustments
-    transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))                            # Adjust image orientation
+    if param.axcodes != 'NO':
+    	transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))                            # Adjust image orientation
+    else:
+    	print('No Orientationd')
     transform_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest"))) # Adjust image spacing
 
     # Spike noise addition
@@ -284,7 +287,8 @@ def loadValidationTransforms(param):
         val_array.append(AdjustContrastd(keys=["image"], gamma=2.5))
     val_array.append(ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)) # MARIANA
     # Spatial adjustment
-    val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
+    if param.axcodes != 'NO':
+    	val_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))
     val_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest")))
     val_transforms = Compose(val_array)
     return val_transforms
@@ -314,7 +318,9 @@ def loadInferenceTransforms(param, output_path):
             EnsureChannelFirstd(keys=["image"], channel_dim='no_channel'),
             ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True)
         ]
-    pre_array.append(Orientationd(keys=["image"], axcodes=param.axcodes))
+    
+    if param.axcodes != 'NO':
+    	pre_array.append(Orientationd(keys=["image"], axcodes=param.axcodes))
     pre_array.append(Spacingd(keys=["image"], pixdim=param.pixel_dim, mode=("bilinear")))
     pre_transforms = Compose(pre_array)
     
@@ -476,13 +482,12 @@ def setupModel(param):
     if param.axcodes == 'PIL':
         strides = [(1, 2, 2), (1, 2, 2), (1, 1, 1)]   # PIL
     else:    
-        strides = [(2, 2, 1), (2, 2, 1), (1, 1, 1)]   # LIP
+        strides = [(2, 2, 1), (2, 2, 1), (1, 1, 1)]   # Make other options according to chosen orientation
     model_unet = UNet(
         spatial_dims=3, 
         in_channels=param.in_channels,
         out_channels=param.out_channels,
         channels=[16, 32, 64, 128],                 # This is a Unet with 4 layers
-        #strides=[(2, 2, 1), (2, 2, 1), (1, 1, 1)],  # This is a Unet with 4 layers - LIP
         strides= strides,  
         num_res_units=2,
         norm=Norm.BATCH,
