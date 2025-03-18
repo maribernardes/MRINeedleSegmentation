@@ -25,6 +25,7 @@ from monai.transforms import (
     RandRicianNoised,
     RandFlipd,
     RandZoomd,
+    RandRotated,
     RandScaleIntensityd,
     RandStdShiftIntensityd,
     RandKSpaceSpikeNoised,
@@ -114,6 +115,7 @@ class TrainingParam(Param):
         self.training_rand_noise = float(self.config.get('training', 'random_noise', fallback='0.0'))
         self.training_spike_noise = float(self.config.get('training', 'random_spike', fallback='0.0'))
         self.training_rand_flip = float(self.config.get('training', 'random_flip', fallback='0.0'))
+        self.training_rand_rotation = float(self.config.get('training', 'random_rotation', fallback='3.14'))
         self.training_rand_zoom = float(self.config.get('training', 'random_zoom', fallback='0.0'))
 
 class TestParam(Param):
@@ -168,12 +170,15 @@ def loadTrainingTransforms(param):
         # Noise addition
         if param.training_rand_noise != 0:
             if random.random() < param.training_rand_noise: # Probability of adding noise
-                transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
-                if (param.input_type == 'R') or (param.input_type == 'I'):
-                    transform_array.append(RandRicianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
-                else:     
-                    transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Phase - mean=0, std=0.08
-            transform_array.append(ConcatItemsd(keys=["image_1", "image_2"], name="image"))     # Concatenate Magnitude and Phase to 2-channels       
+                if random.random() < param.training_rand_noise: # Probability of adding noise
+                    if (param.input_type == 'R') or (param.input_type == 'I'):
+                        transform_array.append(RandGaussianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.08))     # Add small Gaussian noise to Real -  mean=0, std=0.08
+                        transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))     # Add small Gaussian noise to Imaginary -  mean=0, std=0.08
+                    else:     
+                        transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
+                        transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Phase - mean=0, std=0.08
+        # Concatenate images
+        transform_array.append(ConcatItemsd(keys=["image_1", "image_2"], name="image"))     # Concatenate Magnitude and Phase to 2-channels       
     elif param.in_channels==3:
         # Three channels input
         transform_array = [
@@ -190,13 +195,16 @@ def loadTrainingTransforms(param):
         # Noise addition
         if param.training_rand_noise != 0:
             if random.random() < param.training_rand_noise: # Probability of adding noise
-                transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
-                transform_array.append(RandRicianNoised(keys=["image_3"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to TypeA -  mean=0, std=0.1
                 if (param.input_type == 'R') or (param.input_type == 'I'):
-                    transform_array.append(RandRicianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
+                    transform_array.append(RandGaussianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Real -  mean=0, std=0.08
+                    transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Imaginary -  mean=0, std=0.08
+                    transform_array.append(RandRicianNoised(keys=["image_3"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to TypeA -  mean=0, std=0.1
                 else:     
+                    transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
                     transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Phase - mean=0, std=0.08
-            transform_array.append(ConcatItemsd(keys=["image_1", "image_2", "image_3"], name="image"))     # Concatenate Magnitude, Phase and Type-A to 3-channels       
+                    transform_array.append(RandRicianNoised(keys=["image_3"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to TypeA -  mean=0, std=0.1
+        # Concatenate images
+        transform_array.append(ConcatItemsd(keys=["image_1", "image_2", "image_3"], name="image"))     # Concatenate Magnitude, Phase and Type-A to 3-channels       
     else:
         # One channel input
         transform_array = [            
@@ -211,17 +219,17 @@ def loadTrainingTransforms(param):
         if param.training_rand_noise != 0:
             transform_array.append(RandRicianNoised(keys=["image"], prob=param.training_rand_noise, mean=0, std=0.1))           # Add Rician noise to Magnitude 
     
-    # # Intensity adjustment
-    # if (param.input_type == 'R') or (param.input_type == 'I'):
-    #     transform_array.append(AdjustContrastd(keys=["image"], gamma=2.5))                  # Increase contrast for real/imaginary
+
+    # Intensity adjustment
     ScaleIntensityd(keys=["image"], minv=0, maxv=1, channel_wise=True) # Re-scale intensity after noise addition
-    
+
     # Spatial adjustments
     if param.axcodes != 'NO':
-    	transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))                            # Adjust image orientation
+        transform_array.append(Orientationd(keys=["image", "label"], axcodes=param.axcodes))                            # Adjust image orientation
     else:
-    	print('No Orientationd')
+        print('No Orientationd')
     transform_array.append(Spacingd(keys=["image", "label"], pixdim=param.pixel_dim, mode=("bilinear", "nearest"))) # Adjust image spacing
+
 
     # Spike noise addition
     if param.training_spike_noise != 0:
@@ -243,6 +251,13 @@ def loadTrainingTransforms(param):
             prob=param.training_rand_zoom,
             spatial_axis=2,
         ))
+
+    if param.training_rand_rotation != 0:
+        transform_array.append(RandRotated(
+        keys=['image', 'label'],
+        prob=param.training_rand_rotation,
+        range_x = 3.14,
+    ))
 
     # Balance background/foreground
     transform_array.append(RandCropByPosNegLabeld(
