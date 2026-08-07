@@ -24,6 +24,9 @@ from common import *
 from loss_functions import *
 
 
+from monai.losses import DiceLoss, FocalLoss
+
+
 def run(param, train_files, val_files):
     
     #--------------------------------------------------------------------------------
@@ -60,8 +63,34 @@ def run(param, train_files, val_files):
     device = torch.device(param.training_device_name)
     model = model_unet.to(device)
     
-    # Loss function & optimizer
-    loss_function = DiceCELoss(lambda_ce=2, lambda_dice=1, to_onehot_y=True, softmax=True)
+    # Loss function
+    if param.loss_function == 'CEDiceLoss':
+        print('Using CEDiceLoss')
+        loss_function = DiceCELoss(lambda_ce=2, lambda_dice=1, to_onehot_y=True, softmax=True)
+    elif param.loss_function == 'GeneralizedDiceLoss':
+        print('Using GeneralizedDiceLoss')
+        loss_function = GeneralizedDiceLoss(to_onehot_y=True, softmax=True)
+    elif param.loss_function == 'FocalLoss':
+        print('Using FocalLoss')
+        loss_function = FocalLoss(gamma=2.0, to_onehot_y=True, softmax=True, weight=[0.05, 0.45, 0.5])  # weight=[background, shaft, tip]
+    elif param.loss_function == 'TverskyLoss':
+        print('Using TverskyLoss')
+        loss_function = TverskyLoss(to_onehot_y=True, softmax=True, alpha=0.3, beta=0.7) # alpha=FP/(FP+TN), beta=FN/(FN+TP)
+    elif param.loss_function == 'DiceFocalLoss':
+        print('Using DiceFocalLoss')
+        loss_function = DiceFocalLoss(lambda_dice=0.5, lambda_focal=0.5, to_onehot_y=True, softmax=True, gamma=2.0, weight=[0.05, 0.45, 0.5])  # [background, shaft, tip]
+    else:
+        print('Using DiceLoss')
+        loss_function = DiceLoss(to_onehot_y=True, softmax=True, weight=[0.05, 0.45, 0.5])
+    '''
+    elif param.loss_function == 'CustomComboLoss':
+        dice_loss = DiceLoss(mode='multiclass', to_onehot_y=True, softmax=True, weight=[0.05, 0.45, 0.5])  # weight=[background, shaft, tip]
+        focal_loss = FocalLoss(gamma=2.0, to_onehot_y=True, softmax=True, weight=[0.05, 0.45, 0.5])  # weight=[background, shaft, tip]
+        def combined_loss(output, target):
+            return 0.5 * dice_loss(output, target) + 0.5 * focal_loss(output, target)
+        loss_function = combined_loss
+    '''
+    # Optimizer        
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
     dice_metric = DiceMetric(include_background=False, reduction="mean")
     

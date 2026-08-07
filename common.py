@@ -101,6 +101,12 @@ class Param():
         self.axcodes = self.config.get('common', 'orientation', fallback ='RAS')
         self.in_channels = int(self.config.get('common', 'in_channels'))
         self.out_channels = int(self.config.get('common', 'out_channels'))
+
+        self.res_units = int(self.config.get('common', 'res_units'))
+        self.last_stride = int(self.config.get('common', 'last_stride'))
+        self.kernel_size = int(self.config.get('common', 'kernel_size'))
+        self.norm = self.config.get('common', 'norm', fallback ='batch')
+
         self.input_type = self.config.get('common', 'input_type')
         self.label_type = self.config.get('common', 'label_type')
         self.model_file = self.config.get('common', 'model_file')
@@ -117,6 +123,7 @@ class TrainingParam(Param):
         self.use_matplotlib = int(self.config.get('training', 'use_matplotlib'))
         self.training_name = self.config.get('training', 'training_name')
         self.max_epochs = int(self.config.get('training', 'max_epochs', fallback='200'))
+        self.loss_function = (self.config.get('training', 'loss_function', fallback='CEDiceLoss'))
         self.training_device_name = self.config.get('training', 'training_device_name')
         self.training_rand_bias = float(self.config.get('training', 'random_bias', fallback='0.0'))
         self.training_rand_noise = float(self.config.get('training', 'random_noise', fallback='0.0'))
@@ -170,20 +177,21 @@ def loadTrainingTransforms(param):
     ]
     # Field bias addition
     if param.training_rand_bias != 0:
-        transform_array.append(RandBiasFieldd(keys=["image_1"], prob=param.training_rand_bias, coeff_range=(0.2, 0.3)))     # Add Field Bias to Magnitude
+        transform_array.append(RandBiasFieldd(keys=["image_1"], prob=param.training_rand_bias, coeff_range=(0.1, 0.7)))     # Add Field Bias to Magnitude
+        #transform_array.append(RandBiasFieldd(keys=["image_1"], prob=param.training_rand_bias, coeff_range=(0.2, 0.3)))     # Add Field Bias to Magnitude
         transform_array.append(ScaleIntensityd(keys=["image_1"], minv=0, maxv=1, channel_wise=True)) # Re-scale intensity after noise addition
     # White noise addition
     if param.training_rand_noise != 0:
         if random.random() < param.training_rand_noise: # Probability of adding noise 
-            transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.1))     # Add Rician noise to Magnitude -  mean=0, std=0.1
-            transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.08))  # Add small Gaussian noise to Phase - mean=0, std=0.08
+            transform_array.append(RandRicianNoised(keys=["image_1"], prob=param.training_rand_noise, mean=0, std=0.01))     # Add Rician noise to Magnitude -  mean=0, std=0.1
+            transform_array.append(RandGaussianNoised(keys=["image_2"], prob=param.training_rand_noise, mean=0, std=0.01))  # Add small Gaussian noise to Phase - mean=0, std=0.08
             transform_array.append(ScaleIntensityd(keys=["image_1"], minv=0, maxv=1, channel_wise=True))                    # Re-scale intensity after noise addition
             transform_array.append(ScaleIntensityd(keys=["image_2"], minv=-torch.pi, maxv=torch.pi, channel_wise=True))     # Re-scale intensity after noise addition
     # Combine images
     transform_array.append(ConcatItemsd(keys=["image_1", "image_2"], name="image"))     # Concatenate Magnitude and Phase to 2-channels   
     # Spike noise addition
     if param.training_spike_noise != 0:
-        transform_array.append(RandKSpaceSpikeNoiseMagPhased(keys=["image"], prob=param.training_spike_noise, reorder_axes=True, intensity_range=(0.95*3.5, 1.01*3.5)))
+        transform_array.append(RandKSpaceSpikeNoiseMagPhased(keys=["image"], prob=param.training_spike_noise, reorder_axes=True, intensity_range=(0.95*2.5, 1.01*2.5)))
         transform_array.append(ScaleIntensityPerChanneld(keys=["image"], min_max_values=[(0, 1), (-torch.pi, torch.pi)])) # Re-scale intensity after noise addition
     # Convert to real/imaginary
     if (param.input_type == 'R') or (param.input_type == 'I'):
@@ -219,18 +227,18 @@ def loadTrainingTransforms(param):
 
     # Data augmentation
     if param.training_rand_flip != 0:
-        transform_array.append(RandZoomd(
+        transform_array.append(RandFlipd(
             keys=['image', 'label'],
             prob=param.training_rand_flip,
+            spatial_axis=2,
+        ))
+    if param.training_rand_zoom != 0:
+        transform_array.append(RandZoomd(
+            keys=['image', 'label'],
+            prob=param.training_rand_zoom,
             min_zoom=1.02,
             max_zoom=1.20,
             mode=['area', 'nearest'],
-        ))
-    if param.training_rand_zoom != 0:
-        transform_array.append(RandFlipd(
-            keys=['image', 'label'],
-            prob=param.training_rand_zoom,
-            spatial_axis=2,
         ))
 
     if param.training_rand_rotation != 0:
@@ -384,19 +392,27 @@ def generateFileList(param, input_path):
 #--------------------------------------------------------------------------------
 
 def setupModel(param):
+    if param.norm == 'batch':
+        print('Use BATCH normalization')
+        norm = Norm.BATCH
+    elif param.norm == 'instance':
+        print('Use INSTANCE normalization')
+        norm = (Norm.INSTANCE, {"affine": True})
 
     if param.axcodes == 'PIL':
-        strides = [(1, 2, 2), (1, 2, 2), (1, 1, 1)]   # PIL
+        strides = [(1, 2, 2), (1, 2, 2), (1, param.last_stride, param.last_stride)]   # PIL
     else:    
-        strides = [(2, 2, 1), (2, 2, 1), (1, 1, 1)]   # Make other options according to chosen orientation
+        strides = [(2, 2, 1), (2, 2, 1), (param.last_stride, param.last_stride, 1)]   # Make other options according to chosen orientation
     model_unet = UNet(
         spatial_dims=3, 
         in_channels=param.in_channels,
         out_channels=param.out_channels,
-        channels=[16, 32, 64, 128],                 # This is a Unet with 4 layers
+        channels=[16, 32, 64, 128],                
+        kernel_size=(param.kernel_size,3,3),
+        up_kernel_size=(param.kernel_size,3,3),
         strides= strides,  
-        num_res_units=2,
-        norm=Norm.BATCH,
+        num_res_units=param.res_units,
+        norm=norm,
     )
     
     post_pred = AsDiscrete(argmax=True, to_onehot=param.out_channels, n_classes=param.out_channels) # MARIANA
